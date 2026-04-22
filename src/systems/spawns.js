@@ -20,11 +20,9 @@ export function stepSpawns(state, hud, audio, dt, levelupPanel) {
     state.boss.alive = false;
     state.bossCount = (state.bossCount || 0) + 1;
     state.bossWarning = null;
-    onBossDefeated(state, hud, audio);
-    if (state._shouldStageClear) {
-      state.boss._prevActive = state.bossActive;
-      return;
-    }
+    onBossDefeated(state, hud, audio, levelupPanel);
+    state.boss._prevActive = state.bossActive;
+    return;
   }
 
   state.boss._prevActive = state.bossActive;
@@ -126,18 +124,27 @@ export function forceAdvanceWave(state, hud, audio) {
   return true;
 }
 
-function onBossDefeated(state, hud, audio) {
+function onBossDefeated(state, hud, audio, levelupPanel) {
   audio?.SE?.stopWarning?.();
   const bossName = state._lastDefeatedBossName || "\u3069\u306b\u3083";
   state._lastDefeatedBossName = "";
   hud.flash(`${bossName}\u3092\u7953\u3063\u305f\uff01`);
 
-  if (state.wave >= state.waveMax) {
-    state._shouldStageClear = true;
+  const finish = () => {
+    if (state.wave >= state.waveMax) {
+      state._shouldStageClear = true;
+      return;
+    }
+
+    advanceWave(state, hud, audio);
+  };
+
+  if (levelupPanel?.showBossRewardSlot) {
+    levelupPanel.showBossRewardSlot(finish);
     return;
   }
 
-  advanceWave(state, hud, audio);
+  finish();
 }
 
 function advanceWave(state, hud, audio) {

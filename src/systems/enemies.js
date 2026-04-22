@@ -2,6 +2,8 @@
 import { PLAYER_CENTER_Y_OFFSET } from "../state/combatOffsets.js";
 
 const XP_GAIN_MULTIPLIER = 1.2;
+const KAGEBOSHI_ANIM_FPS = 7;
+const KAGEBOSHI_ATTACK_FRAME = 7;
 
 export function stepEnemies(state, hud, audio, dt) {
   const p = state.player;
@@ -29,6 +31,12 @@ export function stepEnemies(state, hud, audio, dt) {
       }
     }
 
+    e.stunTimer = Math.max(0, (e.stunTimer ?? 0) - dt);
+    e.freezeTimer = Math.max(0, (e.freezeTimer ?? 0) - dt);
+    e.slowTimer = Math.max(0, (e.slowTimer ?? 0) - dt);
+    if (e.slowTimer <= 0) e.slowMultiplier = 1;
+    const stunned = e.stunTimer > 0 || e.freezeTimer > 0;
+    const speedMul = e.slowTimer > 0 ? clamp(e.slowMultiplier ?? 1, 0.1, 1) : 1;
     const move = getEnemyMove(state, e, p.x, centerY, dt, audio);
     const contactDx = move.toPlayerX;
     const contactDy = move.toPlayerY;
@@ -39,9 +47,11 @@ export function stepEnemies(state, hud, audio, dt) {
       e.x -= contactDx * e.knock * dt;
       e.y -= contactDy * e.knock * dt;
       e.knock = Math.max(0, e.knock - 260 * dt);
+    } else if (stunned) {
+      e.knock = Math.max(0, e.knock - 260 * dt);
     } else {
-      e.x += move.vx * dt;
-      e.y += move.vy * dt;
+      e.x += move.vx * speedMul * dt;
+      e.y += move.vy * speedMul * dt;
     }
 
     const rr = p.r + e.r;
@@ -89,6 +99,19 @@ function getEnemyMove(state, e, playerX, playerY, dt, audio) {
     return stepBoarMove(e, dx, dy, d, dt);
   }
 
+  if (e.type === 7 || e.type === 8) {
+    stepKageboshiAttack(state, e, dx, dy, d, dt);
+    if (d <= (e.attackRange ?? 460)) {
+      return {
+        vx: 0,
+        vy: 0,
+        face: dx < 0 ? -1 : 1,
+        toPlayerX: dx,
+        toPlayerY: dy,
+      };
+    }
+  }
+
   if (e.type === 4 && Number.isFinite(e.fastRushDirX) && Number.isFinite(e.fastRushDirY)) {
     const rushX = e.fastRushDirX;
     const rushY = e.fastRushDirY;
@@ -108,6 +131,41 @@ function getEnemyMove(state, e, playerX, playerY, dt, audio) {
     toPlayerX: dx,
     toPlayerY: dy,
   };
+}
+
+function stepKageboshiAttack(state, e, dirX, dirY, dist, dt) {
+  e.rangedAttackTimer = Math.max(0, (e.rangedAttackTimer ?? e.attackInterval ?? 2.2) - dt);
+  if (dist > (e.attackRange ?? 460) || e.rangedAttackTimer > 0) return;
+
+  const frameCount = 8;
+  const frame = Math.floor((state.timeSurvived ?? 0) * KAGEBOSHI_ANIM_FPS) % frameCount;
+  if (frame !== KAGEBOSHI_ATTACK_FRAME) return;
+
+  e.rangedAttackTimer = e.attackInterval ?? 2.2;
+  state.hostileProjectiles ??= [];
+  const speed = e.projectileSpeed ?? 235;
+  state.hostileProjectiles.push({
+    kind: "kageboshiOrb",
+    x: e.x + dirX * ((e.r ?? 18) + 12),
+    y: e.y + dirY * ((e.r ?? 18) + 12),
+    vx: dirX * speed,
+    vy: dirY * speed,
+    speed,
+    turnRate: 0,
+    r: e.projectileRadius ?? 10,
+    dmg: e.projectileDamage ?? Math.max(1, Math.round((e.dmg ?? 12) * 0.78)),
+    life: 3.0,
+    color: e.projectileColor ?? "#8c65ff",
+  });
+  state.fx.push({
+    t: 0,
+    dur: 0.14,
+    kind: "burst",
+    x: e.x + dirX * 24,
+    y: e.y + dirY * 24,
+    color: e.projectileColor ?? "#8c65ff",
+    alphaMul: 0.9,
+  });
 }
 
 function stepBossMove(state, e, dx, dy, dist, dt, playerX, playerY, audio) {
@@ -371,6 +429,11 @@ function stepHostileProjectiles(state, audio, dt, playerX, playerY) {
     shot.x += shot.vx * dt;
     shot.y += shot.vy * dt;
 
+    if (tryBlockHostileProjectileWithOrbit(state, shot)) {
+      projectiles.splice(i, 1);
+      continue;
+    }
+
     if (Math.hypot(playerX - shot.x, playerY - shot.y) >= (p.r ?? 10) + (shot.r ?? 10)) {
       continue;
     }
@@ -400,6 +463,44 @@ function stepHostileProjectiles(state, audio, dt, playerX, playerY) {
       state._shouldGameOver = true;
     }
   }
+}
+
+function tryBlockHostileProjectileWithOrbit(state, shot) {
+  const info = state._orbitInfo;
+  if (!info?.blocksHostileProjectiles || (info.count ?? 0) <= 0) return false;
+
+  const p = state.player;
+  const count = Math.max(1, Math.round(info.count ?? 1));
+  const centerY = p.y + (info.centerYOffset ?? PLAYER_CENTER_Y_OFFSET);
+  const blockRadius = 18 * (info.sizeMul ?? 1) + (shot.r ?? 8);
+
+  for (let i = 0; i < count; i++) {
+    const ang = (info.angle ?? 0) + ((Math.PI * 2) / count) * i;
+    const ox = p.x + Math.cos(ang) * (info.r ?? 0);
+    const oy = centerY + Math.sin(ang) * (info.r ?? 0);
+    if (Math.hypot(shot.x - ox, shot.y - oy) > blockRadius) continue;
+
+    state.fx.push({
+      t: 0,
+      dur: 0.16,
+      kind: "burst",
+      x: shot.x,
+      y: shot.y,
+      color: shot.color ?? "#99ecff",
+      alphaMul: 1.1,
+      radius: 24,
+    });
+    state.fx.push({
+      t: 0,
+      dur: 0.12,
+      kind: "spark",
+      x: ox,
+      y: oy,
+    });
+    return true;
+  }
+
+  return false;
 }
 
 function clampAngle(value, min, max) {

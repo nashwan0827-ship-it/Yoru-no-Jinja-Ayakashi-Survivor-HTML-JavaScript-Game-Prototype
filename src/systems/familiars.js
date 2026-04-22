@@ -11,12 +11,17 @@ import {
 } from "./priorityTarget.js";
 
 const DEFAULT_FAMILIAR_ID = "familiar_shikigami";
+const SHIKIGAMI_FAMILIAR_ID = "familiar_shikigami";
+const REIRI_FAMILIAR_ID = "familiar_reiri";
+const YAKYO_FAMILIAR_ID = "familiar_yakyo";
+const FAMILIAR_MAX_EVOLUTION_LEVEL = 5;
 
 export function stepFamiliars(state, hud, audio, dt) {
   state.activeFamiliars ??= [];
   ensureActiveFamiliars(state);
   updateFamiliarAirstrikes(state, hud, audio);
   updateFamiliarStrikeHazards(state, hud, audio);
+  updateYakyoSlowAura(state, dt);
   if (!hasPriorityTargetSupportFamiliar(state)) {
     clearPriorityTarget(state);
   }
@@ -129,43 +134,13 @@ function updateFamiliarTackle(state, hud, audio, familiar, def, dt) {
   const radiusSq = (tackle.radius ?? 30) ** 2;
   for (let i = state.enemies.length - 1; i >= 0; i--) {
     const enemy = state.enemies[i];
-    if (enemy.hp <= 0 || hitSet.has(enemy)) continue;
+    if (!enemy || enemy.hp <= 0 || hitSet.has(enemy)) continue;
     const dx = enemy.x - familiar.x;
     const dy = enemy.y - familiar.y;
     if (dx * dx + dy * dy > radiusSq) continue;
 
     hitSet.add(enemy);
-    const damage = applyPriorityTargetDamageBonus(state, enemy, tackle.damage);
-    recordEnemyDamage(state, familiar.id, enemy, damage);
-    enemy.hp -= damage;
-    if (!enemy.isBoss) {
-      enemy.knock = Math.min(180, (enemy.knock || 0) + (def.tackleKnock ?? 120));
-    }
-    state.fx.push({
-      kind: "dmg",
-      x: enemy.x,
-      y: enemy.y - (enemy.r || 12),
-      text: String(damage),
-      t: 0,
-      dur: 0.42,
-      vy: -34,
-      jitter: 0,
-    });
-    state.fx.push({
-      kind: "ring",
-      x: enemy.x,
-      y: enemy.y,
-      R: 24,
-      t: 0,
-      dur: 0.16,
-      color: "#ffd49c",
-      alphaMul: 1.1,
-    });
-
-    if (enemy.hp <= 0) {
-      killEnemy(state, hud, audio, enemy, false);
-      state.enemies.splice(i, 1);
-    }
+    performChargeAttack(state, hud, audio, familiar, def, tackle, enemy);
   }
 
   if (progress >= 1) {
@@ -173,6 +148,127 @@ function updateFamiliarTackle(state, hud, audio, familiar, def, dt) {
     familiar.retargetTimer = 0;
   }
   return true;
+}
+
+function performChargeAttack(state, hud, audio, familiar, def, tackle, target) {
+  const evolutionLevel = getFamiliarEvolutionLevel(state, familiar, def);
+  const config = getReiriEvolutionConfig(evolutionLevel);
+  const mainDamage = Math.max(1, Math.round((tackle.damage ?? getFamiliarDamage(state, def)) * config.damageMul));
+  const sourceId = familiar.id ?? REIRI_FAMILIAR_ID;
+
+  applyChargeDamage(state, hud, audio, target, mainDamage, sourceId, {
+    knock: config.mainKnock,
+    stunDuration: config.stunMainOnly ? config.stunDuration : 0,
+    popupVy: -34,
+  });
+
+  state.fx.push({
+    kind: "ring",
+    x: target.x,
+    y: target.y,
+    R: config.hitRingRadius,
+    t: 0,
+    dur: 0.16,
+    color: config.color,
+    alphaMul: config.hitAlphaMul,
+  });
+
+  if (config.impactBurstRadius > 0) {
+    state.fx.push({
+      kind: "burst",
+      x: target.x,
+      y: target.y,
+      t: 0,
+      dur: 0.18,
+      color: config.color,
+      alphaMul: config.hitAlphaMul,
+      radius: config.impactBurstRadius,
+    });
+  }
+
+  if (config.areaRadius > 0 && config.areaDamageMul > 0) {
+    applyChargeAreaDamage(state, hud, audio, target, sourceId, mainDamage, config);
+  }
+}
+
+function applyChargeAreaDamage(state, hud, audio, target, sourceId, mainDamage, config) {
+  const radiusSq = config.areaRadius * config.areaRadius;
+  const areaDamage = Math.max(1, Math.round(mainDamage * config.areaDamageMul));
+
+  state.fx.push({
+    kind: "ring",
+    x: target.x,
+    y: target.y,
+    R: config.areaRadius,
+    t: 0,
+    dur: config.shockwave ? 0.28 : 0.2,
+    color: config.color,
+    alphaMul: config.areaAlphaMul,
+  });
+  state.fx.push({
+    kind: "burst",
+    x: target.x,
+    y: target.y,
+    t: 0,
+    dur: config.shockwave ? 0.26 : 0.2,
+    color: config.color,
+    alphaMul: config.areaAlphaMul,
+    radius: config.areaRadius,
+  });
+
+  for (let i = state.enemies.length - 1; i >= 0; i--) {
+    const enemy = state.enemies[i];
+    if (!enemy || enemy === target || enemy.hp <= 0) continue;
+
+    const dx = enemy.x - target.x;
+    const dy = enemy.y - target.y;
+    if (dx * dx + dy * dy > radiusSq) continue;
+
+    applyChargeDamage(state, hud, audio, enemy, areaDamage, sourceId, {
+      knock: config.areaKnock,
+      stunDuration: config.stunArea ? config.stunDuration : 0,
+      popupVy: -28,
+    });
+  }
+
+  if (config.stunArea && target.hp > 0) {
+    applyEnemyStun(target, config.stunDuration);
+  }
+}
+
+function applyChargeDamage(state, hud, audio, enemy, baseDamage, sourceId, options = {}) {
+  if (!enemy || enemy.hp <= 0) return;
+
+  const damage = applyPriorityTargetDamageBonus(state, enemy, baseDamage);
+  recordEnemyDamage(state, sourceId, enemy, damage);
+  enemy.hp -= damage;
+
+  if (!enemy.isBoss) {
+    enemy.knock = Math.min(240, (enemy.knock || 0) + (options.knock ?? 0));
+    applyEnemyStun(enemy, options.stunDuration ?? 0);
+  }
+
+  state.fx.push({
+    kind: "dmg",
+    x: enemy.x,
+    y: enemy.y - (enemy.r || 12),
+    text: String(damage),
+    t: 0,
+    dur: 0.42,
+    vy: options.popupVy ?? -34,
+    jitter: 0,
+  });
+
+  if (enemy.hp <= 0) {
+    killEnemy(state, hud, audio, enemy, false);
+    const index = state.enemies.indexOf(enemy);
+    if (index >= 0) state.enemies.splice(index, 1);
+  }
+}
+
+function applyEnemyStun(enemy, duration) {
+  if (!enemy || enemy.isBoss || duration <= 0) return;
+  enemy.stunTimer = Math.max(enemy.stunTimer ?? 0, duration);
 }
 
 function updateFamiliarMovement(state, familiar, def, dt) {
@@ -299,6 +395,11 @@ function updateFamiliarAttack(state, hud, audio, familiar, def, dt) {
     return;
   }
 
+  if (def.id === SHIKIGAMI_FAMILIAR_ID) {
+    fireShikigamiFoxfire(state, hud, audio, familiar, def, target);
+    return;
+  }
+
   const damage = applyPriorityTargetDamageBonus(state, target, getFamiliarDamage(state, def));
   recordEnemyDamage(state, familiar.id, target, damage);
   target.hp -= damage;
@@ -359,28 +460,145 @@ function updateFamiliarAttack(state, hud, audio, familiar, def, dt) {
   }
 }
 
+function fireShikigamiFoxfire(state, hud, audio, familiar, def, target) {
+  const evolutionLevel = getFamiliarEvolutionLevel(state, familiar, def);
+  const config = getShikigamiEvolutionConfig(evolutionLevel);
+  const baseDamage = Math.round(getFamiliarDamage(state, def) * config.damageMul);
+  const targets = findFamiliarTargets(state, familiar, def, config.targetCount ?? config.shots ?? 1);
+  if (targets.length <= 0 && target?.hp > 0) {
+    targets.push(target);
+  }
+  const offsets = getMultiTargetLaneOffsets(targets.length);
+
+  for (let i = 0; i < targets.length; i++) {
+    const currentTarget = targets[i];
+    const laneOffset = offsets[i] ?? 0;
+    const directDamage = currentTarget.hp > 0
+      ? applyPriorityTargetDamageBonus(state, currentTarget, baseDamage)
+      : 0;
+
+    if (directDamage > 0) {
+      recordEnemyDamage(state, familiar.id, currentTarget, directDamage);
+      currentTarget.hp -= directDamage;
+      state.fx.push({
+        kind: "dmg",
+        x: currentTarget.x + laneOffset * 0.25,
+        y: currentTarget.y - (currentTarget.r || 12),
+        text: String(directDamage),
+        t: 0,
+        dur: 0.45,
+        vy: -32,
+        jitter: 0,
+      });
+    }
+
+    state.fx.push({
+      kind: "familiarStrike",
+      fromX: familiar.x,
+      fromY: familiar.y,
+      toX: currentTarget.x,
+      toY: currentTarget.y,
+      t: 0,
+      dur: config.duration,
+      sourceId: familiar.id,
+      travelEnd: 0.32,
+      hazardStart: 0.32,
+      hazardRadius: config.hazardRadius,
+      hazardDamage: Math.max(0, Math.round(baseDamage * config.hazardDamageMul)),
+      hazardHitSet: new WeakSet([currentTarget]),
+      hazardTriggered: false,
+      burnDamage: Math.max(0, Math.round(baseDamage * config.burnDamageMul)),
+      burnTickInterval: config.burnTickInterval,
+      burnDuration: config.burnDuration,
+      burnTickMap: new WeakMap(),
+      evolutionLevel,
+      projectileScale: config.projectileScale,
+      laneOffset,
+      fireballPrefab: config.flameVariant === "blue" ? "Fireball_Blue" : "Fireball_Red",
+      flameVariant: config.flameVariant,
+      impactColor: config.impactColor,
+      impactAlphaMul: config.impactAlphaMul,
+    });
+
+    state.fx.push({
+      kind: "ring",
+      x: currentTarget.x,
+      y: currentTarget.y,
+      R: config.hitRingRadius,
+      t: 0,
+      dur: 0.16,
+      color: config.impactColor,
+      alphaMul: config.hitRingAlphaMul,
+    });
+    state.fx.push({
+      kind: "spark",
+      x: currentTarget.x,
+      y: currentTarget.y,
+      t: 0,
+      dur: 0.14,
+    });
+
+    if (!currentTarget.isBoss) {
+      currentTarget.knock = Math.min(100, (currentTarget.knock || 0) + config.knock);
+    }
+
+    if (currentTarget.hp <= 0) {
+      killEnemy(state, hud, audio, currentTarget, false);
+      const index = state.enemies.indexOf(currentTarget);
+      if (index >= 0) state.enemies.splice(index, 1);
+    }
+  }
+}
+
+function getMultiTargetLaneOffsets(count) {
+  if (count <= 1) return [0];
+  const spacing = 14;
+  const center = (count - 1) * 0.5;
+  return Array.from({ length: count }, (_, index) => (index - center) * spacing);
+}
+
 function startFamiliarAirstrike(state, familiar, def, target) {
-  const damage = getFamiliarDamage(state, def);
-  const radius = def.airstrikeRadius ?? 58;
-  const delay = def.airstrikeDelay ?? 0.52;
-  state.fx.push({
-    kind: "yakyoAirstrike",
-    sourceId: familiar.id,
-    fromX: familiar.x,
-    fromY: familiar.y - 70,
-    x: target.x,
-    y: target.y,
-    radius,
-    damage,
-    t: 0,
-    dur: delay + 0.34,
-    impactAt: delay,
-    detonated: false,
-    color: familiar.slotIndex % 2 === 0 ? "#ffe68a" : "#bcefff",
-  });
+  const evolutionLevel = getFamiliarEvolutionLevel(state, familiar, def);
+  const config = getYakyoEvolutionConfig(evolutionLevel);
+  const damage = Math.max(1, Math.round(getFamiliarDamage(state, def) * config.damageMul));
+  const radius = config.radius;
+  const delay = def.id === YAKYO_FAMILIAR_ID ? 0.14 : def.airstrikeDelay ?? 0.52;
+  const targets = def.id === YAKYO_FAMILIAR_ID
+    ? findFamiliarTargets(state, familiar, def, config.targetCount ?? 1)
+    : [target];
+  if (targets.length <= 0 && target?.hp > 0) targets.push(target);
+
+  for (const currentTarget of targets) {
+    state.fx.push({
+      kind: "yakyoAirstrike",
+      sourceId: familiar.id,
+      evolutionLevel,
+      fromX: familiar.x,
+      fromY: familiar.y - 70,
+      x: currentTarget.x,
+      y: currentTarget.y,
+      primaryTarget: currentTarget,
+      radius,
+      damage,
+      areaDamageMul: config.areaDamageMul,
+      slowMultiplier: config.slowMultiplier,
+      slowDuration: config.slowDuration,
+      freezeChance: config.freezeChance,
+      freezeDuration: config.freezeDuration,
+      t: 0,
+      dur: delay + 0.34,
+      impactAt: delay,
+      detonated: false,
+      color: config.color,
+    });
+  }
 }
 
 function startFamiliarTackle(state, familiar, def, target) {
+  const evolutionLevel = getFamiliarEvolutionLevel(state, familiar, def);
+  const config = def.id === REIRI_FAMILIAR_ID
+    ? getReiriEvolutionConfig(evolutionLevel)
+    : getReiriEvolutionConfig(1);
   const damage = getFamiliarDamage(state, def);
   const dx = target.x - familiar.x;
   const dy = target.y - familiar.y;
@@ -395,9 +613,10 @@ function startFamiliarTackle(state, familiar, def, target) {
     endX: target.x + nx * overshoot,
     endY: target.y + ny * overshoot,
     t: 0,
-    dur: def.tackleDuration ?? 0.36,
-    radius: def.tackleRadius ?? 30,
+    dur: (def.tackleDuration ?? 0.36) / (config.chargeSpeedMul ?? 1),
+    radius: config.hitRadius ?? def.tackleRadius ?? 30,
     damage,
+    evolutionLevel,
     hitSet: new WeakSet(),
   };
 
@@ -408,7 +627,7 @@ function startFamiliarTackle(state, familiar, def, target) {
     toX: target.x,
     toY: target.y,
     t: 0,
-    dur: def.tackleDuration ?? 0.36,
+    dur: familiar.tackle.dur,
   });
 }
 
@@ -416,7 +635,315 @@ function getFamiliarBoostLevel(state) {
   return Math.max(0, state.player?.statLevels?.familiarBoost ?? 0);
 }
 
+function getFamiliarEvolutionLevel(state, familiar, def) {
+  const progressLevel = state.familiarProgress?.familiarLevel?.[familiar.id];
+  const rawLevel =
+    familiar.evolutionLevel ??
+    def.evolutionLevel ??
+    progressLevel ??
+    getFamiliarBoostLevel(state) + 1;
+  const level = Number(rawLevel);
+  if (!Number.isFinite(level)) return 1;
+  return Math.max(1, Math.min(FAMILIAR_MAX_EVOLUTION_LEVEL, Math.floor(level)));
+}
+
+function getShikigamiEvolutionConfig(evolutionLevel) {
+  switch (evolutionLevel) {
+    case 2:
+      return {
+        shots: 1,
+        targetCount: 1,
+        damageMul: 1.22,
+        projectileScale: 1.16,
+        hazardRadius: 0,
+        hazardDamageMul: 0,
+        burnDamageMul: 0,
+        burnTickInterval: 0,
+        burnDuration: 0,
+        duration: 1.25,
+        hitRingRadius: 22,
+        hitRingAlphaMul: 1.15,
+        impactAlphaMul: 1.2,
+        impactColor: "#ff8a4a",
+        flameVariant: "red",
+        knock: 32,
+      };
+    case 3:
+      return {
+        shots: 2,
+        targetCount: 2,
+        damageMul: 1,
+        projectileScale: 1.08,
+        hazardRadius: 0,
+        hazardDamageMul: 0,
+        burnDamageMul: 0,
+        burnTickInterval: 0,
+        burnDuration: 0,
+        duration: 1.25,
+        hitRingRadius: 22,
+        hitRingAlphaMul: 1.2,
+        impactAlphaMul: 1.25,
+        impactColor: "#ff8a4a",
+        flameVariant: "red",
+        knock: 36,
+      };
+    case 4:
+      return {
+        shots: 1,
+        targetCount: 3,
+        damageMul: 1.1,
+        projectileScale: 1.14,
+        hazardRadius: 46,
+        hazardDamageMul: 0.42,
+        burnDamageMul: 0,
+        burnTickInterval: 0,
+        burnDuration: 0,
+        duration: 1.35,
+        hitRingRadius: 30,
+        hitRingAlphaMul: 1.35,
+        impactAlphaMul: 1.45,
+        impactColor: "#ff7a32",
+        flameVariant: "red",
+        knock: 44,
+      };
+    case 5:
+      return {
+        shots: 1,
+        targetCount: 4,
+        damageMul: 1.28,
+        projectileScale: 1.3,
+        hazardRadius: 68,
+        hazardDamageMul: 0.58,
+        burnDamageMul: 0.18,
+        burnTickInterval: 0.42,
+        burnDuration: 1.3,
+        duration: 1.62,
+        hitRingRadius: 42,
+        hitRingAlphaMul: 1.6,
+        impactAlphaMul: 1.75,
+        impactColor: "#78dcff",
+        flameVariant: "blue",
+        knock: 54,
+      };
+    default:
+      return {
+        shots: 1,
+        targetCount: 1,
+        damageMul: 1,
+        projectileScale: 1,
+        hazardRadius: 0,
+        hazardDamageMul: 0,
+        burnDamageMul: 0,
+        burnTickInterval: 0,
+        burnDuration: 0,
+        duration: 1.2,
+        hitRingRadius: 18,
+        hitRingAlphaMul: 1.15,
+        impactAlphaMul: 1.1,
+        impactColor: "#ff9a4a",
+        flameVariant: "red",
+        knock: 28,
+      };
+  }
+}
+
+function getYakyoEvolutionConfig(evolutionLevel) {
+  switch (evolutionLevel) {
+    case 2:
+      return {
+        targetCount: 1,
+        attackIntervalMul: 0.95,
+        damageMul: 0.78,
+        radius: 44,
+        areaDamageMul: 0.42,
+        slowMultiplier: 0.72,
+        slowDuration: 1.2,
+        freezeChance: 0,
+        freezeDuration: 0,
+        attackRangeMul: 1.14,
+        auraRadius: 0,
+        auraSlowMultiplier: 1,
+        color: "#a8efff",
+      };
+    case 3:
+      return {
+        targetCount: 2,
+        attackIntervalMul: 0.94,
+        damageMul: 0.84,
+        radius: 54,
+        areaDamageMul: 0.5,
+        slowMultiplier: 0.68,
+        slowDuration: 1.3,
+        freezeChance: 0,
+        freezeDuration: 0,
+        attackRangeMul: 1.14,
+        auraRadius: 0,
+        auraSlowMultiplier: 1,
+        color: "#8ee6ff",
+      };
+    case 4:
+      return {
+        targetCount: 2,
+        attackIntervalMul: 0.9,
+        damageMul: 0.9,
+        radius: 60,
+        areaDamageMul: 0.56,
+        slowMultiplier: 0.6,
+        slowDuration: 1.45,
+        freezeChance: 0.16,
+        freezeDuration: 0.5,
+        attackRangeMul: 1.18,
+        auraRadius: 0,
+        auraSlowMultiplier: 1,
+        color: "#79dcff",
+      };
+    case 5:
+      return {
+        targetCount: 2,
+        attackIntervalMul: 0.86,
+        damageMul: 1,
+        radius: 68,
+        areaDamageMul: 0.66,
+        slowMultiplier: 0.56,
+        slowDuration: 1.65,
+        freezeChance: 0.26,
+        freezeDuration: 0.65,
+        attackRangeMul: 1.22,
+        auraRadius: 120,
+        auraSlowMultiplier: 0.78,
+        color: "#b8f7ff",
+      };
+    default:
+      return {
+        targetCount: 1,
+        attackIntervalMul: 1,
+        damageMul: 0.68,
+        radius: 36,
+        areaDamageMul: 0.34,
+        slowMultiplier: 0.86,
+        slowDuration: 1,
+        freezeChance: 0,
+        freezeDuration: 0,
+        attackRangeMul: 1,
+        auraRadius: 0,
+        auraSlowMultiplier: 1,
+        color: "#bcefff",
+      };
+  }
+}
+
+function getReiriEvolutionConfig(evolutionLevel) {
+  switch (evolutionLevel) {
+    case 2:
+      return {
+        attackIntervalMul: 0.94,
+        damageMul: 1.38,
+        mainKnock: 135,
+        hitRadius: 36,
+        areaRadius: 0,
+        areaDamageMul: 0,
+        areaKnock: 0,
+        stunDuration: 0,
+        stunMainOnly: false,
+        stunArea: false,
+        chargeSpeedMul: 1.08,
+        hitRingRadius: 28,
+        impactBurstRadius: 26,
+        hitAlphaMul: 1.25,
+        areaAlphaMul: 1,
+        color: "#ffd49c",
+        shockwave: false,
+      };
+    case 3:
+      return {
+        attackIntervalMul: 0.9,
+        damageMul: 1.16,
+        mainKnock: 125,
+        hitRadius: 38,
+        areaRadius: 64,
+        areaDamageMul: 0.58,
+        areaKnock: 68,
+        stunDuration: 0,
+        stunMainOnly: false,
+        stunArea: false,
+        chargeSpeedMul: 1.14,
+        hitRingRadius: 30,
+        impactBurstRadius: 34,
+        hitAlphaMul: 1.3,
+        areaAlphaMul: 1.25,
+        color: "#ffc76f",
+        shockwave: false,
+      };
+    case 4:
+      return {
+        attackIntervalMul: 0.86,
+        damageMul: 1.26,
+        mainKnock: 175,
+        hitRadius: 40,
+        areaRadius: 72,
+        areaDamageMul: 0.64,
+        areaKnock: 88,
+        stunDuration: 0.62,
+        stunMainOnly: false,
+        stunArea: true,
+        chargeSpeedMul: 1.28,
+        hitRingRadius: 36,
+        impactBurstRadius: 40,
+        hitAlphaMul: 1.45,
+        areaAlphaMul: 1.3,
+        color: "#ffb85c",
+        shockwave: false,
+      };
+    case 5:
+      return {
+        attackIntervalMul: 0.82,
+        damageMul: 1.4,
+        mainKnock: 220,
+        hitRadius: 44,
+        areaRadius: 104,
+        areaDamageMul: 0.82,
+        areaKnock: 145,
+        stunDuration: 0.78,
+        stunMainOnly: false,
+        stunArea: true,
+        chargeSpeedMul: 1.4,
+        hitRingRadius: 44,
+        impactBurstRadius: 50,
+        hitAlphaMul: 1.85,
+        areaAlphaMul: 1.95,
+        color: "#fff0b5",
+        shockwave: true,
+      };
+    default:
+      return {
+        attackIntervalMul: 1,
+        damageMul: 1,
+        mainKnock: 70,
+        hitRadius: 34,
+        areaRadius: 0,
+        areaDamageMul: 0,
+        areaKnock: 0,
+        stunDuration: 0,
+        stunMainOnly: false,
+        stunArea: false,
+        chargeSpeedMul: 1,
+        hitRingRadius: 24,
+        impactBurstRadius: 0,
+        hitAlphaMul: 1.1,
+        areaAlphaMul: 1,
+        color: "#ffd49c",
+        shockwave: false,
+      };
+  }
+}
+
 function getFamiliarMaxCount(state, def, progress) {
+  if (def.id === REIRI_FAMILIAR_ID) {
+    const evolutionLevel = getFamiliarEvolutionLevel(state, { id: def.id }, def);
+    const levelCount = evolutionLevel >= 5 ? 3 : evolutionLevel >= 3 ? 2 : 1;
+    return Math.max(0, Math.min(def.maxCount ?? 1, levelCount));
+  }
+
   const boostLevel = getFamiliarBoostLevel(state);
   const boostCountBonus = Math.floor(boostLevel / 2);
   const countBonus = (progress?.familiarCountBonus ?? 0) + boostCountBonus;
@@ -432,7 +959,12 @@ function getFamiliarDamage(state, def) {
 function getFamiliarAttackInterval(state, def) {
   const boostLevel = getFamiliarBoostLevel(state);
   const intervalMul = Math.max(0.55, 1 - boostLevel * 0.06);
-  return (def.attackInterval ?? 0.8) * intervalMul;
+  const evolutionMul = def.id === YAKYO_FAMILIAR_ID
+    ? getYakyoEvolutionConfig(getFamiliarEvolutionLevel(state, { id: def.id }, def)).attackIntervalMul ?? 1
+    : def.id === REIRI_FAMILIAR_ID
+      ? getReiriEvolutionConfig(getFamiliarEvolutionLevel(state, { id: def.id }, def)).attackIntervalMul ?? 1
+    : 1;
+  return (def.attackInterval ?? 0.8) * intervalMul * evolutionMul;
 }
 
 function getFamiliarHazardDamage(state, directDamage) {
@@ -450,45 +982,36 @@ function updateFamiliarAirstrikes(state, hud, audio) {
     const radius = fx.radius ?? 58;
     const radiusSq = radius * radius;
     const damage = Math.max(1, Math.round(fx.damage ?? 1));
-
-    state.fx.push({
-      kind: "burst",
-      x: fx.x,
-      y: fx.y,
-      t: 0,
-      dur: 0.24,
-      color: fx.color ?? "#ffe68a",
-      alphaMul: 1.55,
-      radius,
-    });
-    state.fx.push({
-      kind: "ring",
-      x: fx.x,
-      y: fx.y,
-      R: radius,
-      t: 0,
-      dur: 0.24,
-      color: fx.color ?? "#ffe68a",
-      alphaMul: 1.45,
-    });
+    const areaDamage = Math.max(1, Math.round(damage * (fx.areaDamageMul ?? 0)));
+    const slowMultiplier = fx.slowMultiplier ?? 1;
+    const slowDuration = fx.slowDuration ?? 0;
+    const freezeChance = fx.freezeChance ?? 0;
+    const freezeDuration = fx.freezeDuration ?? 0;
 
     for (let i = state.enemies.length - 1; i >= 0; i--) {
       const enemy = state.enemies[i];
-      if (enemy.hp <= 0) continue;
+      if (!enemy || enemy.hp <= 0) continue;
       const dx = enemy.x - fx.x;
       const dy = enemy.y - fx.y;
-      if (dx * dx + dy * dy > radiusSq) continue;
+      const isPrimary = enemy === fx.primaryTarget;
+      const inRadius = radius > 0 && dx * dx + dy * dy <= radiusSq;
+      if (!isPrimary && (!inRadius || (fx.areaDamageMul ?? 0) <= 0)) continue;
 
-      recordEnemyDamage(state, fx.sourceId ?? "familiar_yakyo", enemy, damage);
-      enemy.hp -= damage;
+      const hitDamage = isPrimary ? damage : areaDamage;
+      recordEnemyDamage(state, fx.sourceId ?? YAKYO_FAMILIAR_ID, enemy, hitDamage);
+      enemy.hp -= hitDamage;
+      applyEnemySlow(enemy, slowMultiplier, slowDuration);
+      if (freezeChance > 0 && Math.random() < freezeChance) {
+        applyEnemyFreeze(enemy, freezeDuration);
+      }
       if (!enemy.isBoss) {
-        enemy.knock = Math.min(95, (enemy.knock || 0) + 34);
+        enemy.knock = Math.min(95, (enemy.knock || 0) + 22);
       }
       state.fx.push({
         kind: "dmg",
         x: enemy.x,
         y: enemy.y - (enemy.r || 12),
-        text: String(damage),
+        text: String(hitDamage),
         t: 0,
         dur: 0.42,
         vy: -32,
@@ -503,21 +1026,75 @@ function updateFamiliarAirstrikes(state, hud, audio) {
   }
 }
 
+function updateYakyoSlowAura(state, dt) {
+  const familiars = state.activeFamiliars ?? [];
+  for (const familiar of familiars) {
+    if (familiar.id !== YAKYO_FAMILIAR_ID) continue;
+
+    const def = getFamiliar(familiar.id);
+    const config = getYakyoEvolutionConfig(getFamiliarEvolutionLevel(state, familiar, def));
+    if ((config.auraRadius ?? 0) <= 0) continue;
+
+    const radiusSq = config.auraRadius * config.auraRadius;
+    for (const enemy of state.enemies) {
+      if (!enemy || enemy.hp <= 0) continue;
+      const dx = enemy.x - familiar.x;
+      const dy = enemy.y - familiar.y;
+      if (dx * dx + dy * dy > radiusSq) continue;
+      applyEnemySlow(enemy, config.auraSlowMultiplier, 0.22);
+    }
+  }
+}
+
+function applyEnemySlow(enemy, multiplier, duration) {
+  if (!enemy || duration <= 0 || multiplier >= 1) return;
+  enemy.slowMultiplier = Math.min(enemy.slowMultiplier ?? 1, multiplier);
+  enemy.slowTimer = Math.max(enemy.slowTimer ?? 0, duration);
+}
+
+function applyEnemyFreeze(enemy, duration) {
+  if (!enemy || enemy.isBoss || duration <= 0) return;
+  enemy.freezeTimer = Math.max(enemy.freezeTimer ?? 0, duration);
+}
+
 function updateFamiliarStrikeHazards(state, hud, audio) {
   for (const fx of state.fx) {
     if (fx.kind !== "familiarStrike") continue;
     if (!fx.hazardDamage || !fx.hazardRadius) continue;
 
-    const progress = fx.t / Math.max(0.001, fx.dur);
-    if (progress < (fx.hazardStart ?? 0.7)) continue;
+    if (fx.t < (fx.hazardStart ?? 0.7)) continue;
 
     const hitSet = fx.hazardHitSet ?? new WeakSet();
     fx.hazardHitSet = hitSet;
     const radiusSq = fx.hazardRadius * fx.hazardRadius;
 
+    if (!fx.hazardTriggered) {
+      fx.hazardTriggered = true;
+      state.fx.push({
+        kind: "burst",
+        x: fx.toX,
+        y: fx.toY,
+        t: 0,
+        dur: 0.22,
+        color: fx.impactColor ?? "#ff9a4a",
+        alphaMul: fx.impactAlphaMul ?? 1.2,
+        radius: fx.hazardRadius,
+      });
+      state.fx.push({
+        kind: "ring",
+        x: fx.toX,
+        y: fx.toY,
+        R: fx.hazardRadius,
+        t: 0,
+        dur: 0.22,
+        color: fx.impactColor ?? "#ff9a4a",
+        alphaMul: fx.impactAlphaMul ?? 1.2,
+      });
+    }
+
     for (let i = state.enemies.length - 1; i >= 0; i--) {
       const enemy = state.enemies[i];
-      if (enemy.hp <= 0 || hitSet.has(enemy)) continue;
+      if (!enemy || enemy.hp <= 0 || hitSet.has(enemy)) continue;
 
       const dx = enemy.x - fx.toX;
       const dy = enemy.y - fx.toY;
@@ -553,19 +1130,71 @@ function updateFamiliarStrikeHazards(state, hud, audio) {
         state.enemies.splice(i, 1);
       }
     }
+
+    applyFamiliarBurnDamage(state, hud, audio, fx, radiusSq);
+  }
+}
+
+function applyFamiliarBurnDamage(state, hud, audio, fx, radiusSq) {
+  const burnDamage = Math.max(0, Math.round(fx.burnDamage ?? 0));
+  const tickInterval = fx.burnTickInterval ?? 0;
+  const burnDuration = fx.burnDuration ?? 0;
+  if (burnDamage <= 0 || tickInterval <= 0 || burnDuration <= 0) return;
+  if (fx.t > (fx.hazardStart ?? 0) + burnDuration) return;
+
+  const tickMap = fx.burnTickMap ?? new WeakMap();
+  fx.burnTickMap = tickMap;
+
+  for (let i = state.enemies.length - 1; i >= 0; i--) {
+    const enemy = state.enemies[i];
+    if (!enemy || enemy.hp <= 0) continue;
+
+    const dx = enemy.x - fx.toX;
+    const dy = enemy.y - fx.toY;
+    if (dx * dx + dy * dy > radiusSq) continue;
+
+    const nextTickAt = tickMap.get(enemy) ?? (fx.hazardStart ?? 0);
+    if (fx.t + 0.0001 < nextTickAt) continue;
+    tickMap.set(enemy, fx.t + tickInterval);
+
+    const damage = applyPriorityTargetDamageBonus(state, enemy, burnDamage);
+    recordEnemyDamage(state, fx.sourceId ?? SHIKIGAMI_FAMILIAR_ID, enemy, damage);
+    enemy.hp -= damage;
+    state.fx.push({
+      kind: "dmg",
+      x: enemy.x,
+      y: enemy.y - (enemy.r || 12),
+      text: String(damage),
+      t: 0,
+      dur: 0.34,
+      vy: -24,
+      jitter: 0,
+    });
+
+    if (enemy.hp <= 0) {
+      killEnemy(state, hud, audio, enemy, false);
+      state.enemies.splice(i, 1);
+    }
   }
 }
 
 function findFamiliarTarget(state, familiar, def) {
-  const attackRangeSq = (def.attackRange ?? 210) ** 2;
+  return findFamiliarTargets(state, familiar, def, 1)[0] ?? null;
+}
+
+function findFamiliarTargets(state, familiar, def, maxTargets) {
+  const attackRangeMul = def.id === YAKYO_FAMILIAR_ID
+    ? getYakyoEvolutionConfig(getFamiliarEvolutionLevel(state, familiar, def)).attackRangeMul
+    : 1;
+  const attackRangeSq = ((def.attackRange ?? 210) * (attackRangeMul ?? 1)) ** 2;
   const anchorX = state.player.x;
   const anchorY = state.player.y + PLAYER_CENTER_Y_OFFSET;
   const anchorRangeSq = (def.playerAnchorRange ?? 330) ** 2;
-  let best = null;
-  let bestDistSq = Infinity;
+  const limit = Math.max(1, Math.floor(maxTargets ?? 1));
+  const candidates = [];
 
   for (const enemy of state.enemies) {
-    if (enemy.hp <= 0) continue;
+    if (!enemy || enemy.hp <= 0) continue;
 
     const fx = enemy.x - familiar.x;
     const fy = enemy.y - familiar.y;
@@ -576,13 +1205,11 @@ function findFamiliarTarget(state, familiar, def) {
     const py = enemy.y - anchorY;
     if (px * px + py * py > anchorRangeSq) continue;
 
-    if (familiarDistSq < bestDistSq) {
-      best = enemy;
-      bestDistSq = familiarDistSq;
-    }
+    candidates.push({ enemy, familiarDistSq });
   }
 
-  return best;
+  candidates.sort((a, b) => a.familiarDistSq - b.familiarDistSq);
+  return candidates.slice(0, limit).map((candidate) => candidate.enemy);
 }
 
 function rand(min, max) {

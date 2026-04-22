@@ -178,14 +178,14 @@
       }
       .weaponsPanel {
         position: fixed;
-        left: 12px;
-        bottom: 12px;
-        width: 210px;
-        padding: 7px 7px 5px;
+        left: 10px;
+        bottom: 10px;
+        width: 168px;
+        padding: 5px 6px 4px;
         color: #e8e5ff;
         background: rgba(10, 8, 18, 0.38);
         border: 1px solid rgba(255, 255, 255, 0.12);
-        border-radius: 12px;
+        border-radius: 8px;
         box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
         user-select: none;
         text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6);
@@ -193,41 +193,41 @@
       }
       .itemsPanel {
         position: fixed;
-        left: 12px;
-        bottom: 170px;
-        width: 210px;
-        padding: 7px 7px 5px;
+        left: 10px;
+        bottom: 88px;
+        width: 168px;
+        padding: 5px 6px 4px;
         color: #e8e5ff;
         background: rgba(10, 8, 18, 0.38);
         border: 1px solid rgba(255, 255, 255, 0.12);
-        border-radius: 12px;
+        border-radius: 8px;
         box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
         user-select: none;
         text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6);
         backdrop-filter: blur(3px);
       }
       .weaponSlotsTitle {
-        margin-bottom: 5px;
-        font-size: 9px;
+        margin-bottom: 3px;
+        font-size: 8px;
         font-weight: 700;
-        letter-spacing: 0.12em;
+        letter-spacing: 0;
         opacity: 0.92;
       }
       .weaponSlotRow {
         display: grid;
-        grid-template-columns: 14px 1fr auto;
+        grid-template-columns: 13px 1fr 28px;
         align-items: center;
-        gap: 6px;
-        min-height: 19px;
-        padding: 1px 0;
-        font-size: 10px;
+        gap: 4px;
+        min-height: 16px;
+        padding: 0;
+        font-size: 9px;
       }
       .weaponSlotRow + .weaponSlotRow {
         border-top: 1px solid rgba(255, 255, 255, 0.08);
       }
       .weaponSlotBox {
-        width: 10px;
-        height: 10px;
+        width: 11px;
+        height: 11px;
         border: 1px solid rgba(255, 255, 255, 0.24);
         border-radius: 3px;
         background: rgba(255, 255, 255, 0.06);
@@ -262,9 +262,10 @@
         text-shadow: 0 0 10px rgba(255, 170, 80, 0.18);
       }
       .weaponSlotLv {
-        margin-left: 5px;
-        font-size: 9px;
+        margin-left: 2px;
+        font-size: 8px;
         opacity: 0.86;
+        text-align: right;
       }
       .weaponSlotText--evolved {
         color: #ffe7a6;
@@ -279,20 +280,20 @@
       }
       .toggleLoadoutBtn {
         position: fixed;
-        left: 12px;
-        bottom: 126px;
-        width: 42px;
-        height: 42px;
+        left: 186px;
+        bottom: 10px;
+        width: 34px;
+        height: 30px;
         display: flex;
         align-items: center;
         justify-content: center;
         color: #f3f0ff;
-        font-size: 11px;
+        font-size: 9px;
         font-weight: 700;
-        letter-spacing: 0.08em;
+        letter-spacing: 0;
         background: rgba(10, 8, 18, 0.44);
         border: 1px solid rgba(255, 255, 255, 0.14);
-        border-radius: 12px;
+        border-radius: 8px;
         box-shadow: 0 10px 24px rgba(0, 0, 0, 0.2);
         text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6);
         backdrop-filter: blur(3px);
@@ -494,6 +495,82 @@
         box-shadow:
           inset 0 1px 0 rgba(255, 233, 242, 0.07),
           0 0 18px rgba(255, 72, 124, 0.12);
+      }
+      .bossRewardSlot {
+        display: grid;
+        gap: 12px;
+        grid-column: 1 / -1;
+      }
+      .bossRewardCount {
+        text-align: center;
+        font-weight: 800;
+        font-size: 18px;
+        color: #fff5c8;
+        text-shadow: 0 2px 0 rgba(0, 0, 0, 0.45);
+      }
+      .bossRewardReels {
+        display: grid;
+        gap: 10px;
+      }
+      .bossRewardReel {
+        display: grid;
+        grid-template-columns: 28px 54px 1fr;
+        align-items: center;
+        gap: 10px;
+        min-height: 68px;
+        padding: 8px 10px;
+        border-radius: 8px;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        background: rgba(255, 255, 255, 0.08);
+      }
+      .bossRewardReel.is-spinning {
+        border-color: rgba(255, 235, 150, 0.36);
+        background: rgba(255, 235, 150, 0.1);
+      }
+      .bossRewardReel.is-fixed {
+        border-color: rgba(155, 245, 210, 0.5);
+        background: rgba(100, 220, 170, 0.12);
+      }
+      .bossRewardIndex {
+        display: grid;
+        place-items: center;
+        width: 24px;
+        height: 24px;
+        border-radius: 8px;
+        color: rgba(15, 18, 26, 0.9);
+        background: rgba(255, 245, 205, 0.92);
+        font-weight: 900;
+        font-size: 12px;
+      }
+      .bossRewardText b {
+        display: block;
+        font-size: 14px;
+      }
+      .bossRewardText small {
+        display: block;
+        margin-top: 2px;
+        color: rgba(235, 238, 255, 0.72);
+      }
+      .bossRewardHint {
+        text-align: center;
+        font-size: 11px;
+        color: rgba(235, 238, 255, 0.68);
+      }
+      .bossRewardContinue {
+        justify-self: center;
+        min-width: 132px;
+        min-height: 38px;
+        padding: 8px 18px;
+        border: 1px solid rgba(255, 245, 205, 0.42);
+        border-radius: 8px;
+        color: #1b1f2b;
+        background: rgba(255, 245, 205, 0.92);
+        font-weight: 900;
+        cursor: pointer;
+      }
+      .bossRewardContinue:focus-visible {
+        outline: 2px solid rgba(255, 255, 255, 0.86);
+        outline-offset: 2px;
       }
       .hint {
         opacity: 0.8;
@@ -954,23 +1031,23 @@
         display: block !important;
         left: max(10px, env(safe-area-inset-left));
         bottom: max(8px, env(safe-area-inset-bottom));
-        width: min(34vw, 200px);
+        width: min(30vw, 168px);
       }
       body.mobile-landscape .itemsPanel {
         display: block !important;
         left: max(10px, env(safe-area-inset-left));
-        bottom: calc(max(8px, env(safe-area-inset-bottom)) + 128px);
-        width: min(34vw, 200px);
+        bottom: calc(max(8px, env(safe-area-inset-bottom)) + 78px);
+        width: min(30vw, 168px);
       }
       body.mobile-landscape .toggleLoadoutBtn {
         display: flex !important;
         left: calc(
-          max(10px, env(safe-area-inset-left)) + min(34vw, 200px) + 10px
+          max(10px, env(safe-area-inset-left)) + min(30vw, 168px) + 8px
         );
         bottom: max(8px, env(safe-area-inset-bottom));
-        width: 38px;
-        height: 38px;
-        font-size: 10px;
+        width: 34px;
+        height: 30px;
+        font-size: 9px;
       }
       body.mobile-landscape .panel {
         width: min(640px, calc(100vw - 24px));
@@ -1403,10 +1480,22 @@
           inset 0 0 14px rgba(255, 180, 80, 0.06);
       }
       .hero-icon {
-        font-size: 22px;
-        line-height: 1;
-        margin-top: 1px;
+        width: 48px;
+        height: 48px;
+        flex: 0 0 48px;
+        margin-top: -2px;
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.045);
+        border: 1px solid rgba(255, 255, 255, 0.08);
         filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
+        overflow: hidden;
+      }
+      .hero-icon--sprite {
+        background-image: var(--hero-sprite);
+        background-repeat: no-repeat;
+        background-size: 420px 168px;
+        background-position: -18px -8px;
+        image-rendering: auto;
       }
       .hero-info {
         flex: 1;
@@ -2228,6 +2317,16 @@
             <span class="stageTag">第一幕クリアで解放</span>
             <b>第二幕</b>
             <small>濃い禍が押し寄せる。恒久強化を重ねて挑む夜。</small>
+          </div>
+          <div
+            class="stageBtn stageBtn--locked"
+            id="stageBtn3"
+            data-stage-id="3"
+            aria-disabled="true"
+          >
+            <span class="stageTag">第二幕クリアで解放</span>
+            <b>第三幕</b>
+            <small>石畳に影が差す。遠距離の妖を見極めて祓う夜。</small>
           </div>
         </div>
 

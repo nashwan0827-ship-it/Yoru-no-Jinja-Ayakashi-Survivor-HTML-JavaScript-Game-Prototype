@@ -68,6 +68,20 @@ export function createAssets(){
   let _enemyBoarFW = 0;
   let _enemyBoarFH = 0;
 
+  let _enemyKageboshiImg = null;
+  let _enemyKageboshiReady = false;
+  const _enemyKageboshiCols = 4;
+  const _enemyKageboshiRows = 2;
+  let _enemyKageboshiFW = 0;
+  let _enemyKageboshiFH = 0;
+
+  let _enemyKageboshiRedImg = null;
+  let _enemyKageboshiRedReady = false;
+  const _enemyKageboshiRedCols = 4;
+  const _enemyKageboshiRedRows = 2;
+  let _enemyKageboshiRedFW = 0;
+  let _enemyKageboshiRedFH = 0;
+
   let _slashFxImg = null;
   let _slashFxReady = false;
   const _slashFxCols = 4;
@@ -137,6 +151,20 @@ export function createAssets(){
   const _shikigamiFoxfireFxRows = 2;
   let _shikigamiFoxfireFxFW = 0;
   let _shikigamiFoxfireFxFH = 0;
+
+  let _shikigamiFoxfireBlueFxImg = null;
+  let _shikigamiFoxfireBlueFxReady = false;
+  const _shikigamiFoxfireBlueFxCols = 4;
+  const _shikigamiFoxfireBlueFxRows = 2;
+  let _shikigamiFoxfireBlueFxFW = 0;
+  let _shikigamiFoxfireBlueFxFH = 0;
+
+  let _yakyoIceFxImg = null;
+  let _yakyoIceFxReady = false;
+  const _yakyoIceFxCols = 4;
+  const _yakyoIceFxRows = 2;
+  let _yakyoIceFxFW = 0;
+  let _yakyoIceFxFH = 0;
 
   async function loadHero(heroId){
     const srcMap = {
@@ -325,6 +353,38 @@ export function createAssets(){
     }
   }
 
+  async function loadEnemyKageboshi(){
+    const res = await loadImage(PATHS.enemyKageboshi);
+    if(res.ok){
+      _enemyKageboshiImg = res.img;
+      _enemyKageboshiReady = true;
+      _enemyKageboshiFW = Math.floor(_enemyKageboshiImg.width / _enemyKageboshiCols);
+      _enemyKageboshiFH = Math.floor(_enemyKageboshiImg.height / _enemyKageboshiRows);
+    }else{
+      _enemyKageboshiImg = null;
+      _enemyKageboshiReady = false;
+      _enemyKageboshiFW = 0;
+      _enemyKageboshiFH = 0;
+      console.error("[assets] enemyKageboshi load failed:", res.src);
+    }
+  }
+
+  async function loadEnemyKageboshiRed(){
+    const res = await loadImage(PATHS.enemyKageboshiRed);
+    if(res.ok){
+      _enemyKageboshiRedImg = res.img;
+      _enemyKageboshiRedReady = true;
+      _enemyKageboshiRedFW = Math.floor(_enemyKageboshiRedImg.width / _enemyKageboshiRedCols);
+      _enemyKageboshiRedFH = Math.floor(_enemyKageboshiRedImg.height / _enemyKageboshiRedRows);
+    }else{
+      _enemyKageboshiRedImg = null;
+      _enemyKageboshiRedReady = false;
+      _enemyKageboshiRedFW = 0;
+      _enemyKageboshiRedFH = 0;
+      console.error("[assets] enemyKageboshiRed load failed:", res.src);
+    }
+  }
+
   async function loadSlashFx(){
     const res = await loadImage(PATHS.slashFx);
     if(res.ok){
@@ -453,6 +513,38 @@ export function createAssets(){
     }
   }
 
+  async function loadShikigamiFoxfireBlueFx(){
+    const res = await loadImage(PATHS.shikigamiFoxfireBlueFx);
+    if(res.ok){
+      _shikigamiFoxfireBlueFxImg = res.img;
+      _shikigamiFoxfireBlueFxReady = true;
+      _shikigamiFoxfireBlueFxFW = Math.floor(_shikigamiFoxfireBlueFxImg.width / _shikigamiFoxfireBlueFxCols);
+      _shikigamiFoxfireBlueFxFH = Math.floor(_shikigamiFoxfireBlueFxImg.height / _shikigamiFoxfireBlueFxRows);
+    }else{
+      _shikigamiFoxfireBlueFxImg = null;
+      _shikigamiFoxfireBlueFxReady = false;
+      _shikigamiFoxfireBlueFxFW = 0;
+      _shikigamiFoxfireBlueFxFH = 0;
+      console.error("[assets] blue shikigami foxfire load failed:", res.src);
+    }
+  }
+
+  async function loadYakyoIceFx(){
+    const res = await loadImage(PATHS.yakyoIceFx);
+    if(res.ok){
+      _yakyoIceFxImg = res.img;
+      _yakyoIceFxReady = true;
+      _yakyoIceFxFW = Math.floor(_yakyoIceFxImg.width / _yakyoIceFxCols);
+      _yakyoIceFxFH = Math.floor(_yakyoIceFxImg.height / _yakyoIceFxRows);
+    }else{
+      _yakyoIceFxImg = null;
+      _yakyoIceFxReady = false;
+      _yakyoIceFxFW = 0;
+      _yakyoIceFxFH = 0;
+      console.error("[assets] yakyo ice load failed:", res.src);
+    }
+  }
+
   async function loadOfudaExplosionFx(){
     const res = await loadImage(PATHS.ofudaExplosionFx);
     if(res.ok){
@@ -497,6 +589,8 @@ export function createAssets(){
       loadEnemyFast(),
       loadEnemyTank(),
       loadEnemyBoar(),
+      loadEnemyKageboshi(),
+      loadEnemyKageboshiRed(),
       loadSlashFx(),
       loadPetalFx(),
       loadOfudaFx(),
@@ -507,6 +601,8 @@ export function createAssets(){
       loadReiriTanukiFamiliar(),
       loadYakyoOwlFamiliar(),
       loadShikigamiFoxfireFx(),
+      loadShikigamiFoxfireBlueFx(),
+      loadYakyoIceFx(),
     ]);
   }
 
@@ -571,6 +667,20 @@ export function createAssets(){
     ENEMY_BOAR_ROWS: ()=>_enemyBoarRows,
     ENEMY_BOAR_FW: ()=>_enemyBoarFW,
     ENEMY_BOAR_FH: ()=>_enemyBoarFH,
+
+    enemyKageboshiImg: ()=>_enemyKageboshiImg,
+    enemyKageboshiReady: ()=>_enemyKageboshiReady,
+    ENEMY_KAGEBOSHI_COLS: ()=>_enemyKageboshiCols,
+    ENEMY_KAGEBOSHI_ROWS: ()=>_enemyKageboshiRows,
+    ENEMY_KAGEBOSHI_FW: ()=>_enemyKageboshiFW,
+    ENEMY_KAGEBOSHI_FH: ()=>_enemyKageboshiFH,
+
+    enemyKageboshiRedImg: ()=>_enemyKageboshiRedImg,
+    enemyKageboshiRedReady: ()=>_enemyKageboshiRedReady,
+    ENEMY_KAGEBOSHI_RED_COLS: ()=>_enemyKageboshiRedCols,
+    ENEMY_KAGEBOSHI_RED_ROWS: ()=>_enemyKageboshiRedRows,
+    ENEMY_KAGEBOSHI_RED_FW: ()=>_enemyKageboshiRedFW,
+    ENEMY_KAGEBOSHI_RED_FH: ()=>_enemyKageboshiRedFH,
 
     slashFxImg: ()=>_slashFxImg,
     slashFxReady: ()=>_slashFxReady,
@@ -641,5 +751,19 @@ export function createAssets(){
     SHIKIGAMI_FOXFIRE_FX_ROWS: ()=>_shikigamiFoxfireFxRows,
     SHIKIGAMI_FOXFIRE_FX_FW: ()=>_shikigamiFoxfireFxFW,
     SHIKIGAMI_FOXFIRE_FX_FH: ()=>_shikigamiFoxfireFxFH,
+
+    shikigamiFoxfireBlueFxImg: ()=>_shikigamiFoxfireBlueFxImg,
+    shikigamiFoxfireBlueFxReady: ()=>_shikigamiFoxfireBlueFxReady,
+    SHIKIGAMI_FOXFIRE_BLUE_FX_COLS: ()=>_shikigamiFoxfireBlueFxCols,
+    SHIKIGAMI_FOXFIRE_BLUE_FX_ROWS: ()=>_shikigamiFoxfireBlueFxRows,
+    SHIKIGAMI_FOXFIRE_BLUE_FX_FW: ()=>_shikigamiFoxfireBlueFxFW,
+    SHIKIGAMI_FOXFIRE_BLUE_FX_FH: ()=>_shikigamiFoxfireBlueFxFH,
+
+    yakyoIceFxImg: ()=>_yakyoIceFxImg,
+    yakyoIceFxReady: ()=>_yakyoIceFxReady,
+    YAKYO_ICE_FX_COLS: ()=>_yakyoIceFxCols,
+    YAKYO_ICE_FX_ROWS: ()=>_yakyoIceFxRows,
+    YAKYO_ICE_FX_FW: ()=>_yakyoIceFxFW,
+    YAKYO_ICE_FX_FH: ()=>_yakyoIceFxFH,
   };
 }

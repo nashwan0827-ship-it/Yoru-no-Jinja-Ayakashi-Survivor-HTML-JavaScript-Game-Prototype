@@ -25,6 +25,51 @@ export const STAGE1_LEAF_DECALS = generatedDecor.leaves;
 export const STAGE1_ROCK_OBJECTS = generatedDecor.rocks;
 export const STAGE1_LANTERN_OBJECTS = generatedDecor.lanterns;
 
+export const STAGE2_TORII_OBJECTS = buildDecorSet({
+  count: 6,
+  seed: 702,
+  zones: [
+    { min: CENTER_ZONE_MAX, max: MIDDLE_ZONE_MAX, count: 4 },
+    { min: MIDDLE_ZONE_MAX, max: OUTER_ZONE_MAX - 260, count: 2 },
+  ],
+  minDistance: 960,
+  scaleMin: 0.54,
+  scaleMax: 0.72,
+  avoidTorii: false,
+});
+
+export const STAGE2_TORII_STONE_DECALS = buildToriiStoneDecals(STAGE2_TORII_OBJECTS);
+
+const stage2Decor = buildStage2Decor();
+
+export const STAGE2_LEAF_DECALS = stage2Decor.leaves;
+export const STAGE2_ROCK_OBJECTS = stage2Decor.rocks;
+export const STAGE2_LANTERN_OBJECTS = stage2Decor.lanterns;
+
+export const STAGE3_TORII_OBJECTS = buildDecorSet({
+  count: 5,
+  seed: 803,
+  zones: [
+    { min: CENTER_ZONE_MAX, max: MIDDLE_ZONE_MAX, count: 3 },
+    { min: MIDDLE_ZONE_MAX, max: OUTER_ZONE_MAX - 300, count: 2 },
+  ],
+  minDistance: 1040,
+  scaleMin: 0.5,
+  scaleMax: 0.68,
+  avoidTorii: false,
+});
+
+export const STAGE3_TORII_STONE_DECALS = [
+  ...buildToriiStoneDecals(STAGE3_TORII_OBJECTS),
+  ...buildStoneScatter(901, 90),
+];
+
+const stage3Decor = buildStage3Decor();
+
+export const STAGE3_LEAF_DECALS = stage3Decor.leaves;
+export const STAGE3_ROCK_OBJECTS = stage3Decor.rocks;
+export const STAGE3_LANTERN_OBJECTS = stage3Decor.lanterns;
+
 function buildStage1Decor() {
   return {
     rocks: buildDecorSet({
@@ -68,6 +113,119 @@ function buildStage1Decor() {
   };
 }
 
+function buildStage2Decor() {
+  return {
+    rocks: buildDecorSet({
+      count: 130,
+      seed: 421,
+      zones: [
+        { min: CENTER_OPEN_RADIUS, max: CENTER_ZONE_MAX, count: 14 },
+        { min: CENTER_ZONE_MAX, max: MIDDLE_ZONE_MAX, count: 76 },
+        { min: MIDDLE_ZONE_MAX, max: OUTER_ZONE_MAX - 180, count: 40 },
+      ],
+      minDistance: 205,
+      scaleMin: 0.34,
+      scaleMax: 0.62,
+      avoidObjects: STAGE2_TORII_OBJECTS,
+    }),
+    leaves: buildDecorSet({
+      count: 150,
+      seed: 522,
+      zones: [
+        { min: CENTER_OPEN_RADIUS, max: CENTER_ZONE_MAX, count: 18 },
+        { min: CENTER_ZONE_MAX, max: MIDDLE_ZONE_MAX, count: 82 },
+        { min: MIDDLE_ZONE_MAX, max: OUTER_ZONE_MAX - 140, count: 50 },
+      ],
+      minDistance: 160,
+      scaleMin: 0.2,
+      scaleMax: 0.34,
+      alphaMin: 0.16,
+      alphaMax: 0.34,
+      rotRange: 2.4,
+      avoidObjects: STAGE2_TORII_OBJECTS,
+    }),
+    lanterns: buildDecorSet({
+      count: 18,
+      seed: 633,
+      zones: [
+        { min: CENTER_ZONE_MAX, max: MIDDLE_ZONE_MAX, count: 13 },
+        { min: MIDDLE_ZONE_MAX, max: OUTER_ZONE_MAX - 260, count: 5 },
+      ],
+      minDistance: 720,
+      scaleMin: 0.4,
+      scaleMax: 0.58,
+      avoidObjects: STAGE2_TORII_OBJECTS,
+    }),
+  };
+}
+
+function buildStage3Decor() {
+  return {
+    rocks: buildDecorSet({
+      count: 190,
+      seed: 724,
+      zones: [
+        { min: CENTER_OPEN_RADIUS, max: CENTER_ZONE_MAX, count: 22 },
+        { min: CENTER_ZONE_MAX, max: MIDDLE_ZONE_MAX, count: 108 },
+        { min: MIDDLE_ZONE_MAX, max: OUTER_ZONE_MAX - 180, count: 60 },
+      ],
+      minDistance: 175,
+      scaleMin: 0.32,
+      scaleMax: 0.68,
+      avoidObjects: STAGE3_TORII_OBJECTS,
+    }),
+    leaves: buildDecorSet({
+      count: 80,
+      seed: 825,
+      zones: [
+        { min: CENTER_OPEN_RADIUS, max: CENTER_ZONE_MAX, count: 10 },
+        { min: CENTER_ZONE_MAX, max: MIDDLE_ZONE_MAX, count: 42 },
+        { min: MIDDLE_ZONE_MAX, max: OUTER_ZONE_MAX - 140, count: 28 },
+      ],
+      minDistance: 190,
+      scaleMin: 0.18,
+      scaleMax: 0.3,
+      alphaMin: 0.12,
+      alphaMax: 0.26,
+      rotRange: 2.4,
+      avoidObjects: STAGE3_TORII_OBJECTS,
+    }),
+    lanterns: buildDecorSet({
+      count: 14,
+      seed: 936,
+      zones: [
+        { min: CENTER_ZONE_MAX, max: MIDDLE_ZONE_MAX, count: 10 },
+        { min: MIDDLE_ZONE_MAX, max: OUTER_ZONE_MAX - 260, count: 4 },
+      ],
+      minDistance: 820,
+      scaleMin: 0.36,
+      scaleMax: 0.54,
+      avoidObjects: STAGE3_TORII_OBJECTS,
+    }),
+  };
+}
+
+function buildStoneScatter(seed, count) {
+  return buildDecorSet({
+    count,
+    seed,
+    zones: [
+      { min: CENTER_OPEN_RADIUS, max: CENTER_ZONE_MAX, count: 12 },
+      { min: CENTER_ZONE_MAX, max: MIDDLE_ZONE_MAX, count: 50 },
+      { min: MIDDLE_ZONE_MAX, max: OUTER_ZONE_MAX - 160, count: 28 },
+    ],
+    minDistance: 150,
+    scaleMin: 0.22,
+    scaleMax: 0.44,
+    alphaMin: 0.18,
+    alphaMax: 0.38,
+    rotRange: 2.2,
+  }).map((obj, index) => ({
+    ...obj,
+    tile: index % 3 === 0 ? 2 : 1,
+  }));
+}
+
 function buildDecorSet(config) {
   const result = [];
   const occupied = [];
@@ -84,7 +242,8 @@ function buildDecorSet(config) {
       const radius = Math.sqrt(zone.min * zone.min + t * (zone.max * zone.max - zone.min * zone.min));
       const x = Math.cos(angle) * radius;
       const y = Math.sin(angle) * radius;
-      if (!isGoodDecorPoint(x, y, config.minDistance, occupied, config.avoidTorii !== false)) continue;
+      const avoidObjects = config.avoidObjects ?? (config.avoidTorii !== false);
+      if (!isGoodDecorPoint(x, y, config.minDistance, occupied, avoidObjects)) continue;
 
       const scaleRoll = stageHash(config.seed, serial, 3);
       const obj = {
@@ -120,12 +279,11 @@ function isGoodDecorPoint(x, y, minDistance, occupied, avoidTorii = true) {
     if (dx * dx + dy * dy < min * min) return false;
   }
 
-  if (avoidTorii) {
-    for (const torii of STAGE1_TORII_OBJECTS) {
+  const avoidObjects = Array.isArray(avoidTorii) ? avoidTorii : avoidTorii ? STAGE1_TORII_OBJECTS : [];
+  for (const torii of avoidObjects) {
       const dx = x - torii.x;
       const dy = y - torii.y;
       if (dx * dx + dy * dy < 420 * 420) return false;
-    }
   }
 
   return true;

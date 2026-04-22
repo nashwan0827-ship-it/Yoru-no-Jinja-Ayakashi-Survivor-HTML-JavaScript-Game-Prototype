@@ -1,6 +1,8 @@
 ﻿import {
   ITEM_DEFS,
   pickLevelUpOptions,
+  pickBossRewardOption,
+  rollBossRewardCount,
   upgradeWeapon,
   addWeapon,
   applyEvolution,
@@ -31,10 +33,14 @@ const ITEM_VISUALS = {
 };
 
 export function createLevelupPanel(refs, state, hud, audio) {
+  const titleEl = refs.panel?.querySelector("h2");
+  const defaultTitle = titleEl?.textContent ?? "";
+
   function show() {
     state.pausedForChoice = true;
     refs.panel.style.display = "block";
     refs.choicesEl.innerHTML = "";
+    if (titleEl) titleEl.textContent = defaultTitle;
 
     if (audio?.SE) audio.SE.levelUp();
 
@@ -55,6 +61,7 @@ export function createLevelupPanel(refs, state, hud, audio) {
     state.pausedForChoice = true;
     refs.panel.style.display = "block";
     refs.choicesEl.innerHTML = "";
+    if (titleEl) titleEl.textContent = "選択";
 
     choices.forEach((choice, idx) => {
       const div = buildCustomChoiceCard(choice);
@@ -68,7 +75,159 @@ export function createLevelupPanel(refs, state, hud, audio) {
     });
   }
 
-  return { show, showChoices };
+  function showBossRewardSlot(onDone) {
+    const rewardCount = rollBossRewardCount();
+    const spinResults = [];
+    let evolutionUsed = false;
+
+    state.pausedForChoice = true;
+    refs.panel.style.display = "block";
+    refs.choicesEl.innerHTML = "";
+    if (titleEl) titleEl.textContent = "ボス討伐報酬";
+    if (audio?.SE) audio.SE.levelUp();
+
+    const wrap = document.createElement("div");
+    wrap.className = "bossRewardSlot";
+    wrap.innerHTML = [
+      `<div class="bossRewardCount">強化回数抽選中...</div>`,
+      `<div class="bossRewardReels"></div>`,
+      `<div class="bossRewardHint">所持中の武器・装備がランダムで強化される。</div>`,
+    ].join("");
+    refs.choicesEl.appendChild(wrap);
+
+    const countEl = wrap.querySelector(".bossRewardCount");
+    const reelsEl = wrap.querySelector(".bossRewardReels");
+    const hintEl = wrap.querySelector(".bossRewardHint");
+
+    const countSequence = [1, 3, 5, 1, 3, 5, rewardCount];
+    countSequence.forEach((value, idx) => {
+      window.setTimeout(() => {
+        if (countEl) countEl.textContent = `強化回数 +${value}`;
+      }, 120 * idx);
+    });
+
+    window.setTimeout(() => {
+      spinBossRewardReel(0);
+    }, 120 * countSequence.length + 160);
+
+    function spinBossRewardReel(index) {
+      if (index >= rewardCount) {
+        window.setTimeout(() => {
+          showBossRewardResult();
+        }, 360);
+        return;
+      }
+
+      const opt = pickBossRewardOption(state.player, { allowEvolution: !evolutionUsed });
+      if (!opt) {
+        spinBossRewardReel(rewardCount);
+        return;
+      }
+
+      const reel = document.createElement("div");
+      reel.className = "bossRewardReel is-spinning";
+      reel.innerHTML = renderBossRewardReelContent({ title: "抽選中", badge: "??", iconSrc: "" }, index);
+      reelsEl?.appendChild(reel);
+
+      const preview = getBossRewardPreviewOptions(state.player);
+      for (let i = 0; i < 7; i++) {
+        window.setTimeout(() => {
+          const visual = preview[(Math.random() * preview.length) | 0] ?? { title: "強化", badge: "UP", iconSrc: "" };
+          reel.innerHTML = renderBossRewardReelContent(visual, index);
+        }, 70 * i);
+      }
+
+      window.setTimeout(() => {
+        const visual = getOptionVisual(opt, state.player);
+        applyOption(state, opt, hud);
+        if (opt.kind === "weapon_evolve") evolutionUsed = true;
+        spinResults.push(opt);
+
+        reel.classList.remove("is-spinning");
+        reel.classList.add("is-fixed");
+        reel.innerHTML = renderBossRewardReelContent(visual, index);
+        hud.update(state);
+
+        window.setTimeout(() => spinBossRewardReel(index + 1), 360);
+      }, 560);
+    }
+
+    function showBossRewardResult() {
+      if (countEl) countEl.textContent = `強化結果 +${spinResults.length}`;
+      if (hintEl) {
+        hintEl.textContent = spinResults.length > 0
+          ? "結果を確認したら閉じる。"
+          : "強化できる対象がなかった。";
+      }
+
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "bossRewardContinue";
+      button.textContent = "閉じる";
+      wrap.appendChild(button);
+
+      let closed = false;
+      const close = () => {
+        if (closed) return;
+        closed = true;
+        window.removeEventListener("keydown", onKeyDown);
+        refs.panel.style.display = "none";
+        refs.choicesEl.innerHTML = "";
+        if (titleEl) titleEl.textContent = defaultTitle;
+        state.pausedForChoice = false;
+        hud.flash(`ボス報酬: ${spinResults.length}回強化`);
+        onDone?.();
+      };
+      const onKeyDown = (event) => {
+        if (event.key !== "Enter" && event.key !== " " && event.key !== "Escape") return;
+        event.preventDefault();
+        close();
+      };
+
+      button.addEventListener("click", close, { once: true });
+      window.addEventListener("keydown", onKeyDown);
+      button.focus();
+    }
+  }
+
+  return { show, showChoices, showBossRewardSlot };
+}
+
+function renderBossRewardReelContent(visual, index) {
+  return [
+    `<div class="bossRewardIndex">${index + 1}</div>`,
+    renderIcon(visual),
+    `<div class="bossRewardText">`,
+    `<b>${escapeHtml(visual.title)}</b>`,
+    `<small>${escapeHtml(visual.tag ?? "強化")}</small>`,
+    `</div>`,
+  ].join("");
+}
+
+function getBossRewardPreviewOptions(player) {
+  const previews = [];
+  for (const entry of player.weapons ?? []) {
+    const weapon = getWeapon(entry.weaponId);
+    if (!weapon) continue;
+    previews.push({
+      title: weapon.name,
+      tag: "武器",
+      iconSrc: WEAPON_ICONS[entry.weaponId] ?? "",
+      badge: "WP",
+    });
+  }
+  for (const itemKey of player.items ?? []) {
+    const item = ITEM_DEFS[itemKey];
+    if (!item) continue;
+    const visual = ITEM_VISUALS[itemKey] ?? {};
+    previews.push({
+      title: item.name,
+      tag: "装備",
+      iconSrc: visual.src ?? "",
+      badge: visual.badge ?? "UP",
+    });
+  }
+  return previews.length > 0 ? previews : [{ title: "強化", tag: "報酬", iconSrc: "", badge: "UP" }];
 }
 
 function buildOptionCard(opt, player) {

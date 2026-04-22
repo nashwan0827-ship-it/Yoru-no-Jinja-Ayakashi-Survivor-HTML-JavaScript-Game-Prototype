@@ -1,12 +1,20 @@
 ﻿// ワールド描画全体を管理する
 import { clamp } from "../core/utils.js";
 import { drawOni } from "./primitives.js";
+import {
+  drawBackground,
+  drawMapBoundary,
+  drawStageObjects,
+} from "./background.js";
+import { drawHero } from "./hero.js";
+import { toScreen } from "./renderUtils.js";
+import {
+  drawBossBar,
+  drawBossWarning,
+  drawStageClearCoda,
+} from "./uiOverlays.js";
 import { PLAYER_CENTER_Y_OFFSET } from "../state/combatOffsets.js";
 import {
-  STAGE1_LEAF_DECALS,
-  STAGE1_LANTERN_OBJECTS,
-  STAGE1_ROCK_OBJECTS,
-  STAGE1_TORII_STONE_DECALS,
   STAGE1_TORII_OBJECTS,
   getToriiCollisionRects,
 } from "../data/stageObjects.js";
@@ -50,353 +58,6 @@ export function renderWorld(canvasApi, cam, assets, state) {
 
 function drawRaiuVisual(ctx, W, H, cam, state) {
   return;
-}
-
-function drawMapBoundary(ctx, W, H, cam, state) {
-  const map = state.map;
-  if (!map || map.enabled === false) return;
-
-  const [sx, sy] = toScreen(cam, W, H, map.centerX, map.centerY);
-  const radius = map.radius;
-  const ringWidth = map.ringWidth ?? 24;
-  const playerDx = state.player.x - map.centerX;
-  const playerDy = state.player.y - map.centerY;
-  const playerDist = Math.hypot(playerDx, playerDy);
-  const proximity = clamp(
-    (playerDist - (map.slowRadius ?? radius * 0.85)) /
-      Math.max(1, radius - (map.slowRadius ?? radius * 0.85)),
-    0,
-    1,
-  );
-
-  ctx.save();
-  ctx.globalAlpha = 0.06 + proximity * 0.12;
-  ctx.strokeStyle = "rgba(170, 235, 255, 0.9)";
-  ctx.lineWidth = ringWidth;
-  ctx.beginPath();
-  ctx.arc(sx, sy, radius - ringWidth * 0.5, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.restore();
-
-  ctx.save();
-  ctx.globalAlpha = 0.08 + proximity * 0.14;
-  const glow = ctx.createRadialGradient(
-    sx,
-    sy,
-    Math.max(0, radius - ringWidth * 3),
-    sx,
-    sy,
-    radius + ringWidth * 2,
-  );
-  glow.addColorStop(0, "rgba(120, 200, 255, 0)");
-  glow.addColorStop(0.82, "rgba(120, 200, 255, 0)");
-  glow.addColorStop(0.94, "rgba(145, 225, 255, 0.38)");
-  glow.addColorStop(1, "rgba(170, 240, 255, 0.78)");
-  ctx.fillStyle = glow;
-  ctx.beginPath();
-  ctx.arc(sx, sy, radius + ringWidth * 2, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.restore();
-}
-
-function toScreen(cam, W, H, wx, wy) {
-  return [wx - cam.x + W / 2, wy - cam.y + H / 2];
-}
-
-function drawStageObjects(ctx, W, H, cam, assets, state) {
-  if (state.stage !== 1) return;
-
-  const tiles = assets.stage1Tiles?.();
-  if (tiles?.stone1 && tiles?.stone2) {
-    for (const obj of STAGE1_TORII_STONE_DECALS) {
-      drawStageObjectImage(ctx, W, H, cam, obj.tile === 2 ? tiles.stone2 : tiles.stone1, obj, {
-        baseSize: 128,
-        anchorY: 0.5,
-        alpha: obj.alpha ?? 0.55,
-        rotation: obj.rot ?? 0,
-      });
-    }
-  }
-
-  const leavesImg = assets.autumnLeavesReady?.() ? assets.autumnLeavesImg?.() : null;
-  if (leavesImg) {
-    for (const obj of STAGE1_LEAF_DECALS) {
-      drawStageObjectImage(ctx, W, H, cam, leavesImg, obj, {
-        baseSize: 180,
-        anchorY: 0.5,
-        alpha: obj.alpha ?? 0.65,
-        rotation: obj.rot ?? 0,
-      });
-    }
-  }
-
-  const rocksImg = assets.mossyRocksReady?.() ? assets.mossyRocksImg?.() : null;
-  if (rocksImg) {
-    for (const obj of STAGE1_ROCK_OBJECTS) {
-      drawStageObjectImage(ctx, W, H, cam, rocksImg, obj, {
-        baseSize: 230,
-        anchorY: 0.7,
-      });
-    }
-  }
-
-  const lanternImg = assets.mossyLanternReady?.() ? assets.mossyLanternImg?.() : null;
-  if (lanternImg) {
-    for (const obj of STAGE1_LANTERN_OBJECTS) {
-      drawStageObjectImage(ctx, W, H, cam, lanternImg, obj, {
-        baseSize: 240,
-        anchorY: 0.88,
-      });
-    }
-  }
-
-  const toriiImg = assets.toriiWeatheredReady?.() ? assets.toriiWeatheredImg?.() : null;
-  if (!toriiImg) return;
-
-  for (const obj of STAGE1_TORII_OBJECTS) {
-    drawStageObjectImage(ctx, W, H, cam, toriiImg, obj, {
-      baseSize: 320,
-      anchorY: 0.78,
-    });
-  }
-}
-
-function drawStageObjectImage(ctx, W, H, cam, img, obj, options = {}) {
-  const baseSize = options.baseSize ?? 240;
-  const dw = baseSize * obj.scale;
-  const dh = baseSize * obj.scale;
-  const [sx, sy] = toScreen(cam, W, H, obj.x, obj.y);
-  const x = sx - dw * 0.5;
-  const y = sy - dh * (options.anchorY ?? 0.75);
-  if (x > W + 80 || x + dw < -80 || y > H + 80 || y + dh < -80) return;
-
-  ctx.save();
-  ctx.globalAlpha = options.alpha ?? 1;
-  if (options.rotation) {
-    ctx.translate(sx, sy);
-    ctx.rotate(options.rotation);
-    ctx.drawImage(img, -dw * 0.5, -dh * (options.anchorY ?? 0.75), dw, dh);
-  } else {
-    ctx.drawImage(img, x, y, dw, dh);
-  }
-  ctx.restore();
-}
-
-function drawBackground(ctx, W, H, cam, assets, state) {
-  ctx.globalAlpha = 1;
-  ctx.globalCompositeOperation = "source-over";
-
-  if (state.stage === 1 && assets.stage1TilesReady?.()) {
-    drawStage1TilemapBackground(ctx, W, H, cam, assets);
-    return;
-  }
-
-  if (state.stage === 2 && assets.stage1TilesReady?.()) {
-    drawStage2TilemapBackground(ctx, W, H, cam, assets);
-    return;
-  }
-
-  ctx.fillStyle = "#0a0a18";
-  ctx.fillRect(0, 0, W, H);
-  ctx.fillStyle = "rgba(255,255,255,.85)";
-  ctx.font = "12px system-ui";
-  ctx.fillText("stage tilemap を読み込めませんでした", 14, H - 14);
-}
-
-function drawStage1TilemapBackground(ctx, W, H, cam, assets) {
-  const tiles = assets.stage1Tiles?.();
-  if (!tiles?.ground1 || !tiles?.ground2) return;
-
-  const tileSize = 96;
-  const startX = Math.floor((cam.x - W / 2) / tileSize) - 2;
-  const endX = Math.floor((cam.x + W / 2) / tileSize) + 2;
-  const startY = Math.floor((cam.y - H / 2) / tileSize) - 2;
-  const endY = Math.floor((cam.y + H / 2) / tileSize) + 2;
-
-  ctx.save();
-  ctx.fillStyle = "#111720";
-  ctx.fillRect(0, 0, W, H);
-  ctx.imageSmoothingEnabled = true;
-
-  for (let ty = startY; ty <= endY; ty++) {
-    for (let tx = startX; tx <= endX; tx++) {
-      const sx = tx * tileSize - cam.x + W / 2;
-      const sy = ty * tileSize - cam.y + H / 2;
-      let rot = Math.floor(tileHash(tx + 17, ty - 11) * 4);
-      let tile = tiles.ground1;
-
-      drawTileImage(ctx, tile, sx, sy, tileSize, rot);
-
-      const hollow = 1 - octaveTileNoise(tx - 55, ty + 21, 0.26, 3, 0.5);
-      const shadowAlpha = clamp((hollow - 0.66) * 0.18, 0, 0.08);
-      if (tiles.shadow1 && shadowAlpha > 0.01) {
-        ctx.globalAlpha = shadowAlpha;
-        drawTileImage(ctx, tiles.shadow1, sx, sy, tileSize, Math.floor(tileHash(tx - 12, ty + 44) * 4));
-        ctx.globalAlpha = 1;
-      }
-    }
-  }
-
-  ctx.restore();
-}
-
-function drawStage2TilemapBackground(ctx, W, H, cam, assets) {
-  const tiles = assets.stage1Tiles?.();
-  if (!tiles?.stone1 || !tiles?.stone2) return;
-
-  const tileSize = 96;
-  const startX = Math.floor((cam.x - W / 2) / tileSize) - 2;
-  const endX = Math.floor((cam.x + W / 2) / tileSize) + 2;
-  const startY = Math.floor((cam.y - H / 2) / tileSize) - 2;
-  const endY = Math.floor((cam.y + H / 2) / tileSize) + 2;
-
-  ctx.save();
-  ctx.fillStyle = "#121821";
-  ctx.fillRect(0, 0, W, H);
-  ctx.imageSmoothingEnabled = true;
-
-  for (let ty = startY; ty <= endY; ty++) {
-    for (let tx = startX; tx <= endX; tx++) {
-      const sx = tx * tileSize - cam.x + W / 2;
-      const sy = ty * tileSize - cam.y + H / 2;
-      const wear = octaveTileNoise(tx + 13, ty - 31, 0.18, 3, 0.55);
-      const crack = tileHash(tx + 83, ty - 57);
-      let rot = 0;
-      let tile = tiles.stone1;
-
-      if (tiles.ground2 && wear > 0.84 && crack < 0.34) {
-        tile = tiles.ground2;
-        rot = Math.floor(tileHash(tx - 37, ty + 19) * 4);
-      } else if (crack < 0.16) {
-        tile = tiles.stone2;
-      }
-
-      drawTileImage(ctx, tile, sx, sy, tileSize, rot);
-
-      const hollow = 1 - octaveTileNoise(tx - 55, ty + 21, 0.26, 3, 0.5);
-      const shadowAlpha = clamp((hollow - 0.58) * 0.22 + 0.03, 0, 0.12);
-      if (tiles.shadow1 && shadowAlpha > 0.01) {
-        ctx.globalAlpha = shadowAlpha;
-        drawTileImage(ctx, tiles.shadow1, sx, sy, tileSize, Math.floor(tileHash(tx - 12, ty + 44) * 4));
-        ctx.globalAlpha = 1;
-      }
-    }
-  }
-
-  ctx.restore();
-}
-
-function drawTileImage(ctx, img, x, y, size, quarterTurns = 0) {
-  if (!quarterTurns) {
-    ctx.drawImage(img, x, y, size, size);
-    return;
-  }
-
-  ctx.save();
-  ctx.translate(x + size / 2, y + size / 2);
-  ctx.rotate(quarterTurns * Math.PI * 0.5);
-  ctx.drawImage(img, -size / 2, -size / 2, size, size);
-  ctx.restore();
-}
-
-function tileHash(x, y) {
-  const n = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
-  return n - Math.floor(n);
-}
-
-function smoothTileNoise(x, y, scale = 1) {
-  const sx = x * scale;
-  const sy = y * scale;
-  const x0 = Math.floor(sx);
-  const y0 = Math.floor(sy);
-  const fx = sx - x0;
-  const fy = sy - y0;
-  const u = fx * fx * (3 - 2 * fx);
-  const v = fy * fy * (3 - 2 * fy);
-  const a = tileHash(x0, y0);
-  const b = tileHash(x0 + 1, y0);
-  const c = tileHash(x0, y0 + 1);
-  const d = tileHash(x0 + 1, y0 + 1);
-  const x1 = a + (b - a) * u;
-  const x2 = c + (d - c) * u;
-  return x1 + (x2 - x1) * v;
-}
-
-function octaveTileNoise(x, y, scale = 1, octaves = 3, persistence = 0.5) {
-  let value = 0;
-  let amplitude = 1;
-  let max = 0;
-  let frequency = scale;
-  for (let i = 0; i < octaves; i++) {
-    value += smoothTileNoise(x, y, frequency) * amplitude;
-    max += amplitude;
-    amplitude *= persistence;
-    frequency *= 2;
-  }
-  return max > 0 ? value / max : 0;
-}
-
-function drawHero(ctx, W, H, cam, assets, state) {
-  const p = state.player;
-  const [sx, sy] = toScreen(cam, W, H, p.x, p.y);
-
-  const img = assets.heroImg();
-  const ready = assets.heroReady() && !!img;
-  const facing = p.facing || 1;
-
-  if (!ready) {
-    ctx.fillStyle = "#b07cff";
-    ctx.fillRect(sx - 10, sy - 18, 20, 36);
-    ctx.fillStyle = "#0b0a12";
-    ctx.fillRect(sx - 5, sy - 7, 4, 4);
-    ctx.fillRect(sx + 1, sy - 7, 4, 4);
-
-    if (assets.heroError && assets.heroError()) {
-      ctx.fillStyle = "rgba(255,120,120,.95)";
-      ctx.font = "12px system-ui";
-      const src = assets.heroSrc ? assets.heroSrc() : "";
-      ctx.fillText(`hero load failed: ${src}`, 14, 24);
-    }
-    return;
-  }
-
-  const cols = 5;
-  const rows = 2;
-  const fw = Math.floor(img.width / cols);
-  const fh = Math.floor(img.height / rows);
-
-  const fps = 10;
-  const idx = p.moving
-    ? Math.floor(state.timeSurvived * fps) % (cols * rows)
-    : 0;
-  const col = idx % cols;
-  const row = Math.floor(idx / cols);
-
-  const srcX = col * fw;
-  const srcY = row * fh;
-
-  const HERO_H = 100;
-  const heroScaleMul = state.selectedHeroId === 1 ? 0.92 : 1;
-  const scale = (HERO_H / fh) * heroScaleMul;
-  const dw = fw * scale;
-  const dh = fh * scale;
-
-  ctx.save();
-  ctx.translate(sx, sy + 18);
-  ctx.scale(facing, 1);
-  ctx.drawImage(img, srcX, srcY, fw, fh, -dw / 2, -dh, dw, dh);
-  ctx.restore();
-
-  if (p.iFrames > 0) {
-    ctx.save();
-    ctx.globalAlpha = 0.35;
-    ctx.strokeStyle = "#ffb14a";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(sx, sy - 10, 22, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.restore();
-  }
 }
 
 function drawFamiliars(ctx, W, H, cam, assets, state) {
@@ -551,6 +212,8 @@ function drawEnemy(ctx, W, H, cam, assets, state, e) {
     drawFastEnemySprite(ctx, assets, state, e, sx, sy);
   } else if (e.type === 5) {
     drawTankEnemySprite(ctx, assets, state, e, sx, sy);
+  } else if (e.type === 7 || e.type === 8) {
+    drawKageboshiSprite(ctx, assets, state, e, sx, sy);
   } else {
     ctx.fillStyle = e.color || "#6ae0ff";
     ctx.beginPath();
@@ -907,6 +570,59 @@ function drawTankEnemySprite(ctx, assets, state, e, sx, sy) {
 
   ctx.save();
   ctx.translate(sx, sy + e.r + 8);
+  ctx.scale(face, 1);
+  ctx.drawImage(img, srcX, srcY, fw, fh, -dw / 2, -dh, dw, dh);
+  ctx.restore();
+}
+
+function drawKageboshiSprite(ctx, assets, state, e, sx, sy) {
+  const isRed = e.type === 8;
+  const img = isRed ? assets.enemyKageboshiRedImg?.() : assets.enemyKageboshiImg?.();
+  const ready = isRed
+    ? assets.enemyKageboshiRedReady?.() && !!img
+    : assets.enemyKageboshiReady?.() && !!img;
+  if (!ready) {
+    ctx.save();
+    ctx.fillStyle = e.color || "#7050d8";
+    ctx.beginPath();
+    ctx.arc(sx, sy, e.r || 18, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+    return;
+  }
+
+  const cols = isRed ? assets.ENEMY_KAGEBOSHI_RED_COLS?.() ?? 4 : assets.ENEMY_KAGEBOSHI_COLS?.() ?? 4;
+  const rows = isRed ? assets.ENEMY_KAGEBOSHI_RED_ROWS?.() ?? 2 : assets.ENEMY_KAGEBOSHI_ROWS?.() ?? 2;
+  const fw = (isRed ? assets.ENEMY_KAGEBOSHI_RED_FW?.() : assets.ENEMY_KAGEBOSHI_FW?.()) || Math.floor(img.width / cols);
+  const fh = (isRed ? assets.ENEMY_KAGEBOSHI_RED_FH?.() : assets.ENEMY_KAGEBOSHI_FH?.()) || Math.floor(img.height / rows);
+  const frameCount = cols * rows;
+  const fps = 7;
+  const fi = Math.floor(state.timeSurvived * fps) % frameCount;
+  const col = fi % cols;
+  const row = Math.floor(fi / cols);
+  const srcX = col * fw;
+  const srcY = row * fh;
+
+  const hover = Math.sin(state.timeSurvived * 5.5 + e.x * 0.01) * 3;
+  const targetH = 128;
+  const scale = targetH / fh;
+  const dw = fw * scale;
+  const dh = fh * scale;
+  const face = e.face || 1;
+  const radius = e.r || 18;
+
+  ctx.save();
+  ctx.globalAlpha = 0.22;
+  ctx.fillStyle = "#000";
+  ctx.beginPath();
+  ctx.ellipse(sx, sy + radius * 1.1, radius * 0.9, radius * 0.26, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  ctx.save();
+  ctx.globalAlpha = 0.96;
+  ctx.imageSmoothingEnabled = false;
+  ctx.translate(sx, sy + radius + 6 + hover);
   ctx.scale(face, 1);
   ctx.drawImage(img, srcX, srcY, fw, fh, -dw / 2, -dh, dw, dh);
   ctx.restore();
@@ -1287,28 +1003,44 @@ function drawFx(ctx, W, H, cam, assets, state) {
         Math.max(0, f.t / Math.max(0.001, f.dur)),
       );
       const pulse = Math.sin((1 - a) * Math.PI);
-      const img = assets.shikigamiFoxfireFxImg?.();
-      const ready = assets.shikigamiFoxfireFxReady?.() && !!img;
+      const useBlue = f.fireballPrefab === "Fireball_Blue" || f.flameVariant === "blue";
+      const img = useBlue
+        ? assets.shikigamiFoxfireBlueFxImg?.()
+        : assets.shikigamiFoxfireFxImg?.();
+      const ready = useBlue
+        ? assets.shikigamiFoxfireBlueFxReady?.() && !!img
+        : assets.shikigamiFoxfireFxReady?.() && !!img;
 
       const startX = fromX;
       const startY = fromY - 16;
       const travelProgress = Math.min(1, progress / (f.travelEnd ?? 0.7));
       const flyT = 1 - Math.pow(1 - travelProgress, 2.2);
-      const fx = startX + (toX - startX) * flyT;
-      const fy = startY + (toY - startY) * flyT - Math.sin(travelProgress * Math.PI) * 18;
+      const angle = Math.atan2(toY - startY, toX - startX);
+      const laneOffset = f.laneOffset ?? 0;
+      const sideX = -Math.sin(angle) * laneOffset;
+      const sideY = Math.cos(angle) * laneOffset;
+      const fx = startX + (toX - startX) * flyT + sideX * (1 - travelProgress * 0.45);
+      const fy = startY + (toY - startY) * flyT + sideY * (1 - travelProgress * 0.45) - Math.sin(travelProgress * Math.PI) * 18;
 
       if (ready) {
-        const cols = assets.SHIKIGAMI_FOXFIRE_FX_COLS?.() ?? 4;
-        const rows = assets.SHIKIGAMI_FOXFIRE_FX_ROWS?.() ?? 2;
-        const fw = assets.SHIKIGAMI_FOXFIRE_FX_FW?.() || Math.floor(img.width / cols);
-        const fh = assets.SHIKIGAMI_FOXFIRE_FX_FH?.() || Math.floor(img.height / rows);
+        const cols = useBlue
+          ? assets.SHIKIGAMI_FOXFIRE_BLUE_FX_COLS?.() ?? 4
+          : assets.SHIKIGAMI_FOXFIRE_FX_COLS?.() ?? 4;
+        const rows = useBlue
+          ? assets.SHIKIGAMI_FOXFIRE_BLUE_FX_ROWS?.() ?? 2
+          : assets.SHIKIGAMI_FOXFIRE_FX_ROWS?.() ?? 2;
+        const fw = useBlue
+          ? assets.SHIKIGAMI_FOXFIRE_BLUE_FX_FW?.() || Math.floor(img.width / cols)
+          : assets.SHIKIGAMI_FOXFIRE_FX_FW?.() || Math.floor(img.width / cols);
+        const fh = useBlue
+          ? assets.SHIKIGAMI_FOXFIRE_BLUE_FX_FH?.() || Math.floor(img.height / rows)
+          : assets.SHIKIGAMI_FOXFIRE_FX_FH?.() || Math.floor(img.height / rows);
         const frameCount = cols * rows;
         const fi = Math.min(frameCount - 1, Math.floor(progress * frameCount));
         const srcX = (fi % cols) * fw;
         const srcY = Math.floor(fi / cols) * fh;
-        const dh = 54 * (0.92 + pulse * 0.12);
+        const dh = 54 * (f.projectileScale ?? 1) * (0.92 + pulse * 0.12);
         const dw = dh * (fw / fh);
-        const angle = Math.atan2(toY - startY, toX - startX);
 
         ctx.save();
         ctx.globalCompositeOperation = "screen";
@@ -1322,47 +1054,36 @@ function drawFx(ctx, W, H, cam, assets, state) {
         ctx.save();
         ctx.globalCompositeOperation = "screen";
         ctx.globalAlpha = 0.6 * a;
-        ctx.fillStyle = "rgba(230, 250, 255, 0.95)";
+        ctx.fillStyle = useBlue ? "rgba(135, 220, 255, 0.95)" : "rgba(255, 130, 70, 0.95)";
         ctx.beginPath();
-        ctx.arc(fx, fy, 7 + pulse * 4, 0, Math.PI * 2);
+        ctx.arc(fx, fy, (7 + pulse * 4) * (f.projectileScale ?? 1), 0, Math.PI * 2);
         ctx.fill();
         ctx.restore();
       }
     } else if (f.kind === "yakyoAirstrike") {
-      const [fromX, fromY] = toScreen(cam, W, H, f.fromX ?? f.x, f.fromY ?? f.y);
       const [toX, toY] = toScreen(cam, W, H, f.x, f.y);
       const impactAt = Math.max(0.001, f.impactAt ?? 0.52);
       const progress = clamp(f.t / impactAt, 0, 1);
       const color = f.color ?? "#ffe68a";
-      const fallX = fromX + (toX - fromX) * progress;
-      const fallY = fromY + (toY - fromY) * progress;
-      const markerAlpha = f.detonated ? Math.max(0, a) * 0.12 : 0.16 + progress * 0.28;
+      const iceImg = assets.yakyoIceFxImg?.();
+      const iceReady = assets.yakyoIceFxReady?.() && !!iceImg;
 
       ctx.save();
       ctx.globalCompositeOperation = "screen";
-      ctx.globalAlpha = markerAlpha;
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 2;
-      ctx.setLineDash([8, 6]);
-      ctx.beginPath();
-      ctx.arc(toX, toY, (f.radius ?? 58) * (0.85 + progress * 0.15), 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.setLineDash([]);
 
       if (!f.detonated) {
-        ctx.globalAlpha = 0.55 + progress * 0.35;
-        ctx.fillStyle = color;
-        ctx.beginPath();
-        ctx.arc(fallX, fallY, 7 + progress * 4, 0, Math.PI * 2);
-        ctx.fill();
-
-        ctx.globalAlpha = 0.24;
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.moveTo(fromX, fromY);
-        ctx.lineTo(fallX, fallY);
-        ctx.stroke();
+        if (iceReady) {
+          drawYakyoIceSprite(ctx, assets, iceImg, toX, toY, progress, 44 + progress * 16, 0, 0.72);
+        } else {
+          ctx.globalAlpha = 0.36 + progress * 0.36;
+          ctx.fillStyle = color;
+          ctx.beginPath();
+          ctx.arc(toX, toY, 10 + progress * 12, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      } else if (iceReady) {
+        const burstProgress = clamp((f.t - impactAt) / Math.max(0.001, f.dur - impactAt), 0, 1);
+        drawYakyoIceSprite(ctx, assets, iceImg, toX, toY, burstProgress, Math.max(62, (f.radius ?? 48) * 1.9), 4, Math.max(0, a));
       }
       ctx.restore();
     } else if (f.kind === "familiarTackle") {
@@ -1437,7 +1158,7 @@ function drawFx(ctx, W, H, cam, assets, state) {
       ctx.globalAlpha = 0.35 * a * (f.alphaMul ?? 1);
       ctx.fillStyle = f.color || "#ffd6f2";
       ctx.beginPath();
-      ctx.arc(sx, sy, 26 * (1 - a * 0.4), 0, Math.PI * 2);
+      ctx.arc(sx, sy, (f.radius ?? 26) * (1 - a * 0.4), 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
     } else if (f.kind === "ring") {
@@ -1673,6 +1394,29 @@ function drawOfudaExplosionSprite(ctx, assets, sx, sy, f) {
   ctx.restore();
 }
 
+function drawYakyoIceSprite(ctx, assets, img, sx, sy, progress, targetH, startFrame = 0, alpha = 1) {
+  const cols = assets.YAKYO_ICE_FX_COLS?.() ?? 4;
+  const rows = assets.YAKYO_ICE_FX_ROWS?.() ?? 2;
+  const fw = assets.YAKYO_ICE_FX_FW?.() || Math.floor(img.width / cols);
+  const fh = assets.YAKYO_ICE_FX_FH?.() || Math.floor(img.height / rows);
+  const frameCount = cols * rows;
+  const localFrames = Math.max(1, frameCount - startFrame);
+  const frame = Math.min(frameCount - 1, startFrame + Math.floor(clamp(progress, 0, 0.999) * localFrames));
+  const srcX = (frame % cols) * fw;
+  const srcY = Math.floor(frame / cols) * fh;
+  const scale = targetH / fh;
+  const dw = fw * scale;
+  const dh = fh * scale;
+
+  ctx.save();
+  ctx.translate(sx, sy);
+  ctx.globalCompositeOperation = "screen";
+  ctx.globalAlpha = 0.92 * alpha;
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(img, srcX, srcY, fw, fh, -dw / 2, -dh / 2, dw, dh);
+  ctx.restore();
+}
+
 // 周回武器の描画
 function drawOrbit(ctx, W, H, cam, assets, state) {
   const info = state._orbitInfo;
@@ -1839,153 +1583,6 @@ function drawOrbitTalismanSprite(
     ctx.arc(0, 0, Math.max(dw, dh) * 0.42, 0, Math.PI * 2);
     ctx.stroke();
   }
-}
-
-// ボスHPバーの描画
-function drawBossBar(ctx, W, H, state) {
-  const boss = state.enemies.find((e) => e.isBoss);
-  if (!boss) return;
-
-  const barWidth = Math.min(600, W * 0.7);
-  const barHeight = 18;
-  const x = (W - barWidth) / 2;
-  const topReserved = W <= 820 ? 76 : 66;
-  const y = topReserved;
-
-  const pct = clamp(boss.hp / boss.hpMax, 0, 1);
-
-  ctx.save();
-
-  ctx.fillStyle = "rgba(0,0,0,0.6)";
-  ctx.fillRect(x - 4, y - 4, barWidth + 8, barHeight + 8);
-
-  ctx.fillStyle = "rgba(80,0,0,0.8)";
-  ctx.fillRect(x, y, barWidth, barHeight);
-
-  ctx.fillStyle = "rgba(220,40,40,0.95)";
-  ctx.fillRect(x, y, barWidth * pct, barHeight);
-
-  ctx.strokeStyle = "rgba(255,255,255,0.8)";
-  ctx.lineWidth = 2;
-  ctx.strokeRect(x, y, barWidth, barHeight);
-
-  ctx.font = "bold 14px ui-monospace, Menlo, Consolas, monospace";
-  ctx.textAlign = "center";
-  ctx.fillStyle = "#fff";
-
-  const bossName = boss.name || boss.bossName || "BOSS";
-  ctx.fillText(
-    `${bossName}  ${Math.floor(boss.hp)} / ${boss.hpMax}`,
-    W / 2,
-    y - 8,
-  );
-
-  ctx.restore();
-}
-
-function drawBossWarning(ctx, W, H, state) {
-  const warning = state.bossWarning;
-  if (!warning?.active) return;
-
-  const progress = clamp(warning.t / warning.dur, 0, 1);
-  const fadeIn = clamp(progress / 0.18, 0, 1);
-  const fadeOut = clamp((1 - progress) / 0.24, 0, 1);
-  const alpha = Math.min(fadeIn, fadeOut);
-  const pulse = 0.72 + Math.abs(Math.sin(progress * Math.PI * 8)) * 0.28;
-
-  ctx.save();
-  ctx.globalAlpha = 0.32 * alpha;
-  ctx.fillStyle = "#000";
-  ctx.fillRect(0, 0, W, H);
-
-  const bandH = 92;
-  const bandY = H * 0.5 - bandH * 0.5;
-  ctx.globalAlpha = 0.18 * alpha * pulse;
-  ctx.fillStyle = "#7a0000";
-  ctx.fillRect(0, bandY, W, bandH);
-
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.lineJoin = "round";
-
-  ctx.globalAlpha = alpha;
-  ctx.lineWidth = 8;
-  ctx.strokeStyle = "rgba(20,0,0,0.9)";
-  ctx.font = "bold 44px ui-sans-serif, system-ui, sans-serif";
-  ctx.strokeText(warning.text, W * 0.5, H * 0.5 - 8);
-  ctx.fillStyle = `rgba(255,${Math.round(180 + 40 * pulse)},${Math.round(180 + 20 * pulse)},1)`;
-  ctx.fillText(warning.text, W * 0.5, H * 0.5 - 8);
-
-  ctx.globalAlpha = 0.88 * alpha;
-  ctx.font = "bold 16px ui-monospace, Menlo, Consolas, monospace";
-  ctx.lineWidth = 4;
-  ctx.strokeStyle = "rgba(20,0,0,0.85)";
-  ctx.strokeText(warning.subText, W * 0.5, H * 0.5 + 26);
-  ctx.fillStyle = "rgba(255,235,235,0.98)";
-  ctx.fillText(warning.subText, W * 0.5, H * 0.5 + 26);
-  ctx.restore();
-}
-
-function drawStageClearCoda(ctx, W, H, state) {
-  const coda = state.stageClearCoda;
-  if (!coda?.active) return;
-
-  const progress = clamp(coda.t / coda.dur, 0, 1);
-  const fadeIn = clamp(progress / 0.22, 0, 1);
-  const fadeOut = clamp((1 - progress) / 0.3, 0, 1);
-  const alpha = Math.min(fadeIn, fadeOut);
-  const glow = 0.82 + Math.sin(progress * Math.PI) * 0.18;
-
-  ctx.save();
-  ctx.globalAlpha = 0.34 * alpha;
-  ctx.fillStyle = "#04060c";
-  ctx.fillRect(0, 0, W, H);
-
-  const centerX = W * 0.5;
-  const centerY = H * 0.42;
-  const grad = ctx.createRadialGradient(
-    centerX,
-    centerY,
-    0,
-    centerX,
-    centerY,
-    180,
-  );
-  grad.addColorStop(0, `rgba(240,248,255,${0.12 * alpha})`);
-  grad.addColorStop(0.45, `rgba(170,205,230,${0.08 * alpha})`);
-  grad.addColorStop(1, "rgba(170,205,230,0)");
-  ctx.fillStyle = grad;
-  ctx.beginPath();
-  ctx.arc(centerX, centerY, 180, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.lineJoin = "round";
-
-  ctx.globalAlpha = alpha;
-  ctx.lineWidth = 7;
-  ctx.strokeStyle = "rgba(10, 12, 20, 0.9)";
-  ctx.font = "bold 38px 'Shippori Mincho', 'Noto Serif JP', serif";
-  ctx.strokeText(coda.text, centerX, centerY - 10);
-  ctx.fillStyle = `rgba(${Math.round(232 * glow)},${Math.round(240 * glow)},255,1)`;
-  ctx.fillText(coda.text, centerX, centerY - 10);
-
-  ctx.globalAlpha = 0.9 * alpha;
-  ctx.lineWidth = 4;
-  ctx.strokeStyle = "rgba(10, 12, 20, 0.85)";
-  ctx.font = "bold 16px 'Shippori Mincho', 'Noto Serif JP', serif";
-  ctx.strokeText(coda.subText, centerX, centerY + 30);
-  ctx.fillStyle = "rgba(225,235,245,0.98)";
-  ctx.fillText(coda.subText, centerX, centerY + 30);
-
-  ctx.globalAlpha = 0.16 * alpha;
-  ctx.strokeStyle = "rgba(210, 230, 255, 0.95)";
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.arc(centerX, centerY + 2, 88 + progress * 18, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.restore();
 }
 
 function drawDebugHitboxes(ctx, W, H, cam, state) {

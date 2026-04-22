@@ -1,7 +1,7 @@
 ﻿import { WEAPONS, getWeapon, getEvolutionRecipe } from "./weapons.js";
 
 const WEAPON_LIMIT = 3;
-const ITEM_LIMIT = 3;
+const ITEM_LIMIT = 4;
 
 export const ITEM_DEFS = {
   atk: {
@@ -69,8 +69,10 @@ export const ITEM_DEFS = {
 export function initWeapons(player, startingWeaponId) {
   player.weapons = [{ weaponId: startingWeaponId, level: 1 }];
   player.weaponLimit = WEAPON_LIMIT;
-  player.items = [];
+  player.items = ["familiarBoost"];
   player.itemLimit = ITEM_LIMIT;
+  player.statLevels ??= {};
+  player.statLevels.familiarBoost = Math.max(player.statLevels.familiarBoost ?? 0, 1);
   player.discoveredWeaponIds = new Set([startingWeaponId]);
 }
 
@@ -148,6 +150,63 @@ export function pickLevelUpOptions(player, n = 3) {
   options.push(...makeItemOptions(player));
   shuffle(options);
   return options.slice(0, n);
+}
+
+export function rollBossRewardCount() {
+  const r = Math.random();
+  if (r < 0.1) return 5;
+  if (r < 0.4) return 3;
+  return 1;
+}
+
+export function pickBossRewardOption(player, { allowEvolution = true } = {}) {
+  const options = [];
+
+  if (allowEvolution) {
+    const evolutions = getEvolutionRecipe(player);
+    for (const def of evolutions) {
+      const weaponName = getWeapon(def.evolveWeaponId)?.name ?? def.evolveWeaponId;
+      const itemName = ITEM_DEFS[def.requiredStatKey]?.name ?? def.requiredStatKey;
+      const itemLevel = def.requiredStatLevel ?? 1;
+      options.push({
+        kind: "weapon_evolve",
+        weaponId: def.weaponId,
+        name: `進化 ${def.name}`,
+        desc: `${weaponName} Lv5 / ${itemName} Lv${itemLevel} で進化。${def.desc}`,
+        isEvolution: true,
+      });
+    }
+  }
+
+  for (const entry of player.weapons ?? []) {
+    const def = getWeapon(entry.weaponId);
+    if (!def || def.isEvolved || entry.level >= def.maxLevel) continue;
+    options.push({
+      kind: "weapon_upgrade",
+      weaponId: entry.weaponId,
+      name: `${def.name} Lv${entry.level + 1}`,
+      desc: def.desc,
+    });
+  }
+
+  for (const itemKey of player.items ?? []) {
+    const item = ITEM_DEFS[itemKey];
+    if (!item) continue;
+    const currentLevel = player.statLevels?.[item.key] ?? 0;
+    if (currentLevel >= item.maxLevel) continue;
+    options.push({
+      kind: "stat",
+      name: `${item.name} Lv${currentLevel + 1}`,
+      desc: item.desc,
+      itemKey: item.key,
+      apply() {
+        item.apply(player);
+      },
+    });
+  }
+
+  if (options.length <= 0) return null;
+  return options[(Math.random() * options.length) | 0];
 }
 
 function makeItemOptions(player) {

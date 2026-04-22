@@ -61,11 +61,11 @@ export function createGameState() {
 
       // 武器とアイテムの所持状態
       weapons: [], // [{ weaponId, level }]
-      items: [],
+      items: ["familiarBoost"],
       discoveredWeaponIds: new Set(),
       weaponLimit: 3,
-      itemLimit: 3,
-      statLevels: { atk: 0, aspd: 0, area: 0, hpMax: 0, magnet: 0, familiarBoost: 0 }, // スタット強化レベル
+      itemLimit: 4,
+      statLevels: { atk: 0, aspd: 0, area: 0, hpMax: 0, magnet: 0, familiarBoost: 1 }, // スタット強化レベル
     },
 
     timeSurvived: 0,
@@ -172,8 +172,9 @@ export function resetBattleSceneState(
     state.timeSurvived = 0;
     state.kills = 0;
     state.score = 0;
-    p.items = [];
-    p.statLevels = { atk: 0, aspd: 0, area: 0, hpMax: 0, magnet: 0, familiarBoost: 0 };
+    p.items = ["familiarBoost"];
+    p.itemLimit = 4;
+    p.statLevels = { atk: 0, aspd: 0, area: 0, hpMax: 0, magnet: 0, familiarBoost: 1 };
     p.regen = p.baseRegen ?? 0;
     p.xpGainMul = 1;
     p.atkMul = 1;
@@ -285,6 +286,15 @@ function spawnEnemyRing(state, count) {
       spd: t.spd + state.wave * 1.5,
       dmg: t.dmg,
       color: t.color,
+      name: t.name,
+      role: t.role,
+      preferredRange: t.preferredRange,
+      attackRange: t.attackRange,
+      attackInterval: t.attackInterval,
+      projectileSpeed: t.projectileSpeed,
+      projectileRadius: t.projectileRadius,
+      projectileDamage: t.projectileDamage,
+      projectileColor: t.projectileColor,
       knock: 0,
       noKnock: t.noKnock || false,
       face: 1,

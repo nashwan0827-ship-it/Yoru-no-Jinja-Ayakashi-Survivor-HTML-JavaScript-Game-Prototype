@@ -171,14 +171,14 @@ function shootAll(state, audio, dt) {
     if (!def || def.weaponType !== "ranged") continue;
 
     const cdKey = `_fireCD_${entry.weaponId}`;
-    p[cdKey] = (p[cdKey] ?? 0) - dt;
+    p[cdKey] = Math.max(-0.05, (p[cdKey] ?? 0) - dt);
     if (p[cdKey] > 0) continue;
 
     const ws = weaponStats(def, entry.level);
     const target = nearestEnemy(state);
     if (!target) continue;
 
-    p[cdKey] += 1 / Math.max(0.2, ws.fireRate * getPlayerAttackSpeedMultiplier(state));
+    p[cdKey] = 1 / Math.max(0.2, ws.fireRate * getPlayerAttackSpeedMultiplier(state));
     if (audio?.SE?.shoot) audio.SE.shoot();
 
     let dx = target.x - p.x;
@@ -213,7 +213,8 @@ function shootAll(state, audio, dt) {
           r: 6,
           dmg: Math.round(ws.dmg),
           pierce: ws.pierce ?? 0,
-          life: 1.55,
+          life: ws.life ?? 1.85,
+          returnAfter: ws.returnAfter ?? 0.52,
           kind: "petal",
         });
       } else {
@@ -363,6 +364,7 @@ function orbitTick(state, dt) {
     centerYOffset,
     speedMul: entry.weaponId === "reppufuda" ? 1.35 : 1,
     isRetsusen: entry.weaponId === "reppufuda",
+    blocksHostileProjectiles: entry.weaponId === "orbit" || entry.weaponId === "reppufuda",
   };
 }
 
@@ -784,14 +786,15 @@ export function sakuranamiTick(state, dt) {
         centerYOffset: ORBIT_CENTER_Y_OFFSET,
         speedMul: 1,
         isSakura: true,
+        blocksHostileProjectiles: baseOrbitEntry.weaponId === "orbit" || baseOrbitEntry.weaponId === "reppufuda",
       }
     : null;
 
-  state._sakuraBurstCD = (state._sakuraBurstCD ?? 0) - dt;
+  state._sakuraBurstCD = Math.max(-0.02, (state._sakuraBurstCD ?? 0) - dt);
   if (state._sakuraBurstCD > 0) return;
 
   const spiralInterval = scaleAttackInterval(state, ws.spiralInterval ?? 0.1);
-  state._sakuraBurstCD += spiralInterval;
+  state._sakuraBurstCD = spiralInterval;
   state._sakuraAngle = ((state._sakuraAngle ?? 0) + (ws.spiralTurnSpeed ?? 8.4) * spiralInterval) % (Math.PI * 2);
 
   const arms = ws.spiralArms ?? 2;

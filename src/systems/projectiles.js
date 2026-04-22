@@ -179,7 +179,7 @@ function stepHoming(state, p, dt) {
 
 function stepBoomerang(state, p, dt) {
   p.age = (p.age || 0) + dt;
-  const returnAfter = 0.36;
+  const returnAfter = p.returnAfter ?? 0.36;
   const baseSpd = Math.max(60, Math.hypot(p.vx || 0, p.vy || 0) || 620);
 
   if (p.age >= returnAfter) {

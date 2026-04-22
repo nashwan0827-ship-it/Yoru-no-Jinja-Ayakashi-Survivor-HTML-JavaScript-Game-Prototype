@@ -87,7 +87,7 @@ export function createHUD(refs){
 
   function getItemSnapshot(items, statLevels){
     const parts = [];
-    for(let i=0;i<3;i++){
+    for(let i=0;i<4;i++){
       const itemKey = items?.[i];
       parts.push(itemKey ? `${itemKey}:${statLevels?.[itemKey] ?? 1}` : "empty");
     }
@@ -140,7 +140,7 @@ export function createHUD(refs){
     if (cache.itemsSnapshot === snapshot) return;
 
     const lines = [];
-    for(let i=0;i<3;i++){
+    for(let i=0;i<4;i++){
       const itemKey = items?.[i] ?? null;
       if (itemKey) {
         const name = ITEM_LABELS[itemKey] ?? itemKey;

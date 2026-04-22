@@ -1,4 +1,5 @@
 import { HEROES } from "../data/heroes.js";
+import { PATHS } from "../../paths.js";
 import { STAGES } from "../data/stages.js";
 import { loadPrefs, savePrefs } from "../core/save.js";
 import { FAMILIARS } from "../data/familiars.js";
@@ -275,10 +276,18 @@ export function initTitleUI(refs, state, assets, audio, onSelectHero, onStart) {
 
 function hydrateHeroCards(heroButtons) {
   const statRanges = buildStatRanges(HEROES);
+  const heroSprites = [PATHS.hero1, PATHS.hero2, PATHS.hero3, PATHS.hero4, PATHS.hero5];
 
   heroButtons.forEach((btn, index) => {
     const hero = HEROES[index];
     if (!btn || !hero) return;
+
+    const iconEl = btn.querySelector(".hero-icon");
+    if (iconEl) {
+      iconEl.classList.add("hero-icon--sprite");
+      iconEl.textContent = "";
+      iconEl.style.setProperty("--hero-sprite", `url("${heroSprites[index] ?? PATHS.hero1}")`);
+    }
 
     const statsEl = btn.querySelector(".hero-stats");
     if (statsEl) {

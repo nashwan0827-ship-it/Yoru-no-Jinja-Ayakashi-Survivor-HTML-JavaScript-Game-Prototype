@@ -21,9 +21,9 @@ export const HEROES = [
     name: "花人・舞桜",
     startingWeaponId: "petal", // 初期武器IDのみ定義
     stats: {
-      hp: 105,
-      speed: 238,
-      magnet: 100,
+      hp: 112,
+      speed: 244,
+      magnet: 110,
       regen: 1,
     },
   },
@@ -55,7 +55,7 @@ export const HEROES = [
     startingWeaponId: "orbit",
     stats: {
       hp: 170,
-      speed: 200,
+      speed: 206,
       magnet: 100,
       regen: 3,
     },
