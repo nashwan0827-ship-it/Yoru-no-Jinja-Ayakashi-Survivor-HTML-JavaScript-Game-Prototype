@@ -2,6 +2,9 @@ export const PERMANENT_UPGRADE_MAX_LEVEL = 5;
 
 const STANDARD_COSTS = [300, 600, 1000, 1500, 2200];
 const POWER_COSTS = [500, 900, 1400, 2000, 2800];
+const DAMAGE_PER_LEVEL = 0.06;
+const ATTACK_SPEED_PER_LEVEL = 0.06;
+const FAMILIAR_PER_LEVEL = 0.05;
 
 export const PERMANENT_UPGRADES = [
   {
@@ -30,21 +33,21 @@ export const PERMANENT_UPGRADES = [
     name: "\u546a\u529b\u7814\u78e8",
     desc: "\u4e0e\u3048\u308b\u30c0\u30e1\u30fc\u30b8\u304c\u5c11\u3057\u4e0a\u304c\u308b",
     costs: POWER_COSTS,
-    format: (level) => `+${level * 2}%`,
+    format: (level) => `+${Math.round(level * DAMAGE_PER_LEVEL * 100)}%`,
   },
   {
     key: "attackSpeed",
     name: "\u795e\u901f\u7948\u9858",
     desc: "\u653b\u6483\u9593\u9694\u304c\u5c11\u3057\u77ed\u304f\u306a\u308b",
     costs: POWER_COSTS,
-    format: (level) => `+${(level * 1.5).toFixed(1)}%`,
+    format: (level) => `+${Math.round(level * ATTACK_SPEED_PER_LEVEL * 100)}%`,
   },
   {
     key: "familiar",
     name: "\u5f0f\u795e\u5951\u7d04",
     desc: "\u5f0f\u795e\u306e\u706b\u529b\u3068\u653b\u6483\u901f\u5ea6\u304c\u5c11\u3057\u4e0a\u304c\u308b",
     costs: POWER_COSTS,
-    format: (level) => `+${level * 2}%`,
+    format: (level) => `+${Math.round(level * FAMILIAR_PER_LEVEL * 100)}%`,
   },
 ];
 
@@ -87,9 +90,9 @@ export function getPermanentUpgradeBonuses(progress) {
     hpMul: 1 + hp * 0.04,
     speedMul: 1 + speed * 0.02,
     magnetMul: 1 + magnet * 0.05,
-    damageMul: 1 + damage * 0.02,
-    attackSpeedMul: 1 + attackSpeed * 0.015,
-    familiarDamageMul: 1 + familiar * 0.02,
-    familiarAttackSpeedMul: 1 + familiar * 0.02,
+    damageMul: 1 + damage * DAMAGE_PER_LEVEL,
+    attackSpeedMul: 1 + attackSpeed * ATTACK_SPEED_PER_LEVEL,
+    familiarDamageMul: 1 + familiar * FAMILIAR_PER_LEVEL,
+    familiarAttackSpeedMul: 1 + familiar * FAMILIAR_PER_LEVEL,
   };
 }

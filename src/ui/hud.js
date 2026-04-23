@@ -19,10 +19,15 @@ const WEAPON_ICONS = {
   slash: PATHS.slashIcon,
   thunder: PATHS.thunderIcon,
   blastchain: PATHS.ofudaIcon,
+  senrenfuda: PATHS.ofudaIcon,
   blossomstorm: PATHS.petalIcon,
+  fujinranbu: PATHS.petalIcon,
   raiukekkai: PATHS.thunderIcon,
+  raijinpa: PATHS.thunderIcon,
   reppufuda: PATHS.orbitIcon,
+  hannekekkai: PATHS.orbitIcon,
   reppuzan: PATHS.slashIcon,
+  mikazukizan: PATHS.slashIcon,
 };
 
 const ITEM_ICONS = {

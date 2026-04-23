@@ -102,16 +102,7 @@ export function pickLevelUpOptions(player, n = 3) {
 
   const evolutions = getEvolutionRecipe(player);
   for (const def of evolutions) {
-    const weaponName = getWeapon(def.evolveWeaponId)?.name ?? def.evolveWeaponId;
-    const itemName = ITEM_DEFS[def.requiredStatKey]?.name ?? def.requiredStatKey;
-    const itemLevel = def.requiredStatLevel ?? 1;
-    options.unshift({
-      kind: "weapon_evolve",
-      weaponId: def.weaponId,
-      name: `進化 ${def.name}`,
-      desc: `${weaponName} Lv5 / ${itemName} Lv${itemLevel} で進化。${def.desc}`,
-      isEvolution: true,
-    });
+    options.unshift(buildEvolutionOption(def));
   }
   if (options.length > 0) {
     const itemOptions = makeItemOptions(player);
@@ -165,16 +156,7 @@ export function pickBossRewardOption(player, { allowEvolution = true } = {}) {
   if (allowEvolution) {
     const evolutions = getEvolutionRecipe(player);
     for (const def of evolutions) {
-      const weaponName = getWeapon(def.evolveWeaponId)?.name ?? def.evolveWeaponId;
-      const itemName = ITEM_DEFS[def.requiredStatKey]?.name ?? def.requiredStatKey;
-      const itemLevel = def.requiredStatLevel ?? 1;
-      options.push({
-        kind: "weapon_evolve",
-        weaponId: def.weaponId,
-        name: `進化 ${def.name}`,
-        desc: `${weaponName} Lv5 / ${itemName} Lv${itemLevel} で進化。${def.desc}`,
-        isEvolution: true,
-      });
+      options.push(buildEvolutionOption(def));
     }
   }
 
@@ -244,6 +226,22 @@ function shuffle(arr) {
     const j = (Math.random() * (i + 1)) | 0;
     [arr[i], arr[j]] = [arr[j], arr[i]];
   }
+}
+
+function buildEvolutionOption(def) {
+  const weaponName = getWeapon(def.evolveWeaponId)?.name ?? def.evolveWeaponId;
+  const itemName = ITEM_DEFS[def.requiredStatKey]?.name ?? def.requiredStatKey;
+  const itemLevel = def.requiredStatLevel ?? 1;
+  const evolutionLabel = def.isUniqueEvolution ? "固有進化" : "共通進化";
+  return {
+    kind: "weapon_evolve",
+    weaponId: def.weaponId,
+    name: `${evolutionLabel} ${def.name}`,
+    desc: `${weaponName} Lv5 / ${itemName} Lv${itemLevel} で進化。${def.desc}`,
+    isEvolution: true,
+    evolutionLabel,
+    isUniqueEvolution: !!def.isUniqueEvolution,
+  };
 }
 
 export function applyEvolution(player, evolvedWeaponId) {

@@ -70,9 +70,33 @@ export function loadPrefs() {
   }
 }
 
-export function savePrefs(partialPrefs = {}) {
+export function getPrefsFromState(state, currentPrefs = state?.prefs ?? {}) {
+  const familiarProgress = state?.familiarProgress ?? {};
+  return {
+    ...currentPrefs,
+    selectedHeroId: state?.selectedHeroId ?? currentPrefs.selectedHeroId,
+    selectedStageId: state?.selectedStageId ?? currentPrefs.selectedStageId,
+    selectedDifficultyId: state?.selectedDifficultyId ?? currentPrefs.selectedDifficultyId,
+    unlockedStageMax: state?.unlockedStageMax ?? currentPrefs.unlockedStageMax,
+    unlockedDifficulties: state?.unlockedDifficulties ?? currentPrefs.unlockedDifficulties,
+    showLoadoutPanels: state?.ui?.showLoadoutPanels ?? currentPrefs.showLoadoutPanels,
+    showEnemyHpBars: state?.ui?.showEnemyHpBars ?? currentPrefs.showEnemyHpBars,
+    showMiniMap: state?.ui?.showMiniMap ?? currentPrefs.showMiniMap,
+    soulShards: state?.soulShards ?? currentPrefs.soulShards,
+    permanentUpgrades: state?.permanentUpgrades ?? currentPrefs.permanentUpgrades,
+    unlockedHeroIds: state?.unlockedHeroIds ?? currentPrefs.unlockedHeroIds,
+    unlockedFamiliars: familiarProgress.unlockedFamiliars ?? currentPrefs.unlockedFamiliars,
+    equippedFamiliarId: familiarProgress.equippedFamiliarId ?? currentPrefs.equippedFamiliarId,
+    familiarLevel: familiarProgress.familiarLevel ?? currentPrefs.familiarLevel,
+    familiarMastery: familiarProgress.familiarMastery ?? currentPrefs.familiarMastery,
+    familiarCountBonus: familiarProgress.familiarCountBonus ?? currentPrefs.familiarCountBonus,
+  };
+}
+
+export function savePrefs(currentPrefs = {}, partialPrefs = {}) {
   const next = {
-    ...loadPrefs(),
+    ...DEFAULT_PREFS,
+    ...currentPrefs,
     ...partialPrefs,
   };
 
@@ -105,6 +129,18 @@ export function savePrefs(partialPrefs = {}) {
     // 保存不可の環境ではそのまま続行
   }
 
+  return next;
+}
+
+export function savePrefsFromState(state, partialPrefs = {}) {
+  const next = savePrefs(getPrefsFromState(state), partialPrefs);
+  if (state && typeof state === "object") {
+    if (state.prefs && typeof state.prefs === "object") {
+      Object.assign(state.prefs, next);
+      return state.prefs;
+    }
+    state.prefs = next;
+  }
   return next;
 }
 

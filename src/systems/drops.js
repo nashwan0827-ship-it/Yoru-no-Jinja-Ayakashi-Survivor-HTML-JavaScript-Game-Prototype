@@ -1,5 +1,5 @@
 import { norm, clamp } from "../core/utils.js";
-import { savePrefs } from "../core/save.js";
+import { savePrefsFromState } from "../core/save.js";
 
 export function grantLevelUp(state, audio, levelup){
   const p = state.player;
@@ -67,7 +67,7 @@ export function stepDrops(state, hud, audio, levelup, dt){
         const amount = Math.max(1, Math.floor(d.amount ?? 1));
         state.soulShards = Math.max(0, Math.floor(state.soulShards ?? 0)) + amount;
         state.runSoulShards = Math.max(0, Math.floor(state.runSoulShards ?? 0)) + amount;
-        savePrefs({ soulShards: state.soulShards });
+        savePrefsFromState(state, { soulShards: state.soulShards });
         window.dispatchEvent(new CustomEvent("soul-shards-changed"));
         hud.flash(`\u9b42\u7247 +${amount}`);
       } else {

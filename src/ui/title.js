@@ -1,7 +1,7 @@
 ﻿import { HEROES } from "../data/heroes.js";
 import { PATHS } from "../../paths.js";
 import { STAGE_DIFFICULTIES, STAGES, getStageDifficulty } from "../data/stages.js";
-import { loadPrefs, resetPrefs, savePrefs } from "../core/save.js";
+import { loadPrefs, resetPrefs, savePrefsFromState } from "../core/save.js";
 import {
   PERMANENT_UPGRADE_MAX_LEVEL,
   PERMANENT_UPGRADES,
@@ -15,7 +15,8 @@ import {
 } from "../data/familiars.js";
 
 export function initTitleUI(refs, state, assets, audio, onSelectHero, onStart) {
-  const prefs = loadPrefs();
+  const prefs = state.prefs ?? loadPrefs();
+  state.prefs = prefs;
   const configOverlay = document.getElementById("configOverlay");
   const openConfigBtn = document.getElementById("openConfigBtn");
   const closeConfigBtn = document.getElementById("closeConfigBtn");
@@ -50,6 +51,7 @@ export function initTitleUI(refs, state, assets, audio, onSelectHero, onStart) {
   let resetConfirmTimer = 0;
 
   hydrateHeroCards(heroButtons);
+  hydrateDifficultyButtons(difficultyButtons);
   refreshSoulShardDisplays();
 
   function refreshSoulShardDisplays() {
@@ -125,7 +127,7 @@ export function initTitleUI(refs, state, assets, audio, onSelectHero, onStart) {
     const unlockedHeroIds = [...getUnlockedHeroSet(), id].sort((a, b) => a - b);
     state.soulShards = current - cost;
     state.unlockedHeroIds = unlockedHeroIds;
-    savePrefs({
+    savePrefsFromState(state, {
       soulShards: state.soulShards,
       unlockedHeroIds,
       selectedHeroId: id,
@@ -266,7 +268,7 @@ export function initTitleUI(refs, state, assets, audio, onSelectHero, onStart) {
     };
     state.soulShards = current - cost;
     state.permanentUpgrades = nextProgress;
-    savePrefs({
+    savePrefsFromState(state, {
       soulShards: state.soulShards,
       permanentUpgrades: nextProgress,
     });
@@ -345,7 +347,7 @@ export function initTitleUI(refs, state, assets, audio, onSelectHero, onStart) {
           ...progress,
           equippedFamiliarId: familiarId,
         };
-        savePrefs(state.familiarProgress);
+        savePrefsFromState(state);
         renderFamiliarChoices();
       });
     });
@@ -371,7 +373,7 @@ export function initTitleUI(refs, state, assets, audio, onSelectHero, onStart) {
       unlockedFamiliars,
       equippedFamiliarId: familiarId,
     };
-    savePrefs({
+    savePrefsFromState(state, {
       soulShards: state.soulShards,
       ...state.familiarProgress,
     });
@@ -404,7 +406,7 @@ export function initTitleUI(refs, state, assets, audio, onSelectHero, onStart) {
     heroButtons.forEach((btn, index) => {
       btn.classList.toggle("active", id === index + 1);
     });
-    savePrefs({ selectedHeroId: id });
+    savePrefsFromState(state, { selectedHeroId: id });
     onSelectHero(id);
   }
 
@@ -416,7 +418,7 @@ export function initTitleUI(refs, state, assets, audio, onSelectHero, onStart) {
     stageButtons.forEach((btn) => {
       btn.classList.toggle("active", Number(btn.dataset.stageId) === stage.id);
     });
-    savePrefs({ selectedStageId: stage.id });
+    savePrefsFromState(state, { selectedStageId: stage.id });
     refreshDifficultyLocks();
   }
 
@@ -428,7 +430,7 @@ export function initTitleUI(refs, state, assets, audio, onSelectHero, onStart) {
     difficultyButtons.forEach((btn) => {
       btn.classList.toggle("active", btn.dataset.difficultyId === difficulty.id);
     });
-    savePrefs({ selectedDifficultyId: difficulty.id });
+    savePrefsFromState(state, { selectedDifficultyId: difficulty.id });
   }
 
   function refreshStageLocks() {
@@ -477,7 +479,7 @@ export function initTitleUI(refs, state, assets, audio, onSelectHero, onStart) {
 
   if (!isHeroUnlocked(state.selectedHeroId || 1)) {
     state.selectedHeroId = 1;
-    savePrefs({ selectedHeroId: 1 });
+    savePrefsFromState(state, { selectedHeroId: 1 });
   }
   refreshHeroLocks();
   setActive(state.selectedHeroId || 1, { force: true });
@@ -593,26 +595,26 @@ export function initTitleUI(refs, state, assets, audio, onSelectHero, onStart) {
     bgmSlider.addEventListener("input", (e) => {
       const vol = parseFloat(e.target.value);
       audio.setVolumes({ titleVol: vol, gameVol: vol });
-      savePrefs({ bgmVolume: vol });
+      savePrefsFromState(state, { bgmVolume: vol });
     });
     seSlider.addEventListener("input", (e) => {
       const vol = parseFloat(e.target.value);
       audio.setVolumes({ seVol: vol });
-      savePrefs({ seVolume: vol });
+      savePrefsFromState(state, { seVolume: vol });
     });
   }
 
   bindConfigToggle(loadoutToggle, prefs.showLoadoutPanels, (checked) => {
     state.ui.showLoadoutPanels = checked;
-    savePrefs({ showLoadoutPanels: checked });
+    savePrefsFromState(state, { showLoadoutPanels: checked });
   });
   bindConfigToggle(enemyHpToggle, prefs.showEnemyHpBars, (checked) => {
     state.ui.showEnemyHpBars = checked;
-    savePrefs({ showEnemyHpBars: checked });
+    savePrefsFromState(state, { showEnemyHpBars: checked });
   });
   bindConfigToggle(miniMapToggle, prefs.showMiniMap, (checked) => {
     state.ui.showMiniMap = checked;
-    savePrefs({ showMiniMap: checked });
+    savePrefsFromState(state, { showMiniMap: checked });
   });
 
   spawnPetals();
@@ -638,6 +640,39 @@ function hydrateHeroCards(heroButtons) {
       statsEl.innerHTML = renderHeroStats(hero.stats, statRanges);
     }
   });
+}
+
+function hydrateDifficultyButtons(difficultyButtons) {
+  difficultyButtons.forEach((btn) => {
+    const difficultyId = btn.dataset.difficultyId;
+    const difficulty = STAGE_DIFFICULTIES.find((entry) => entry.id === difficultyId);
+    if (!difficulty) return;
+
+    const intensity = Math.max(1, Math.min(3, Math.round(difficulty.statMul)));
+    const meter = Array.from({ length: 3 }, (_, index) =>
+      `<span class="difficultyPip${index < intensity ? " is-on" : ""}"></span>`
+    ).join("");
+    const summary = getDifficultySummary(difficulty.id, difficulty.statMul);
+
+    btn.innerHTML = [
+      `<div class="difficultyHead">`,
+      `<b>${escapeHtml(difficulty.name)}</b>`,
+      `<span class="difficultyScale">敵強度 x${difficulty.statMul}</span>`,
+      `</div>`,
+      `<div class="difficultyMeter" aria-hidden="true">${meter}</div>`,
+      `<small>${escapeHtml(summary)}</small>`,
+    ].join("");
+  });
+}
+
+function getDifficultySummary(difficultyId, statMul) {
+  if (difficultyId === "hard") {
+    return `敵ステータス${statMul}倍。恒久強化と進化構成を前提にした高難度。`;
+  }
+  if (difficultyId === "normal") {
+    return `敵ステータス${statMul}倍。進化選択と立ち回りの安定感が求められる。`;
+  }
+  return `敵ステータス${statMul}倍。基本ルールを掴みやすい標準難度。`;
 }
 
 function buildStatRanges(heroes) {

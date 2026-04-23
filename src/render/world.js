@@ -1771,6 +1771,9 @@ function getDebugAuraRadius(state) {
   if (auraWeapon) {
     return 80 * Math.pow(1.08, Math.max(0, auraWeapon.level - 1));
   }
+  if (state.player.weapons?.some((w) => w.weaponId === "hannekekkai")) {
+    return 102;
+  }
   if (state.player.weapons?.some((w) => w.weaponId === "raiukekkai")) {
     return 90;
   }

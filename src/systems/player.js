@@ -196,7 +196,7 @@ function shootAll(state, audio, dt) {
       const vx = dx * ca - dy * sa;
       const vy = dx * sa + dy * ca;
 
-      if (entry.weaponId === "petal") {
+      if (entry.weaponId === "petal" || entry.weaponId === "fujinranbu") {
         spawnPetals(
           state,
           p.x + vx * (p.r + 10),
@@ -216,6 +216,7 @@ function shootAll(state, audio, dt) {
           life: ws.life ?? 1.85,
           returnAfter: ws.returnAfter ?? 0.52,
           kind: "petal",
+          damageSource: entry.weaponId,
         });
       } else {
         // 爆符連鎖（blastchain）は爆発フラグ付きで生成
@@ -240,6 +241,7 @@ function shootAll(state, audio, dt) {
           chainRadius: scaleRange(state, ws.chainRadius ?? 0),
           chainBlastDmg: ws.chainBlastDmg ?? 0,
           chainFalloff: ws.chainFalloff ?? 0.82,
+          damageSource: entry.weaponId,
         });
       }
     }
@@ -250,7 +252,7 @@ function getProjectileAngleOffsets(weaponId, multi, spread) {
   if (multi <= 1) return [0];
 
   // 起爆札は偶数枚でも中央に1枚通して、狙った敵を抜けにくくする。
-  if (weaponId === "ofuda") {
+  if (weaponId === "ofuda" || weaponId === "senrenfuda") {
     const offsets = [0];
     for (let step = 1; offsets.length < multi; step++) {
       offsets.push(-spread * step);
@@ -297,7 +299,9 @@ function orbitTick(state, dt) {
   const p = state.player;
   if (!p.weapons) return;
 
-  const entry = findOwned(p, "reppufuda") ?? findOwned(p, "orbit");
+  const entry =
+    findOwned(p, "reppufuda") ??
+    findOwned(p, "orbit");
   if (!entry) return; // blossomstormはsakuranamiTickで別処理
 
   const def = getWeapon(entry.weaponId);
@@ -372,10 +376,10 @@ function thunderTick(state, dt) {
   const p = state.player;
   if (!p.weapons) return;
 
-  const entry = findOwned(p, "thunder");
+  const entry = findOwned(p, "raijinpa") ?? findOwned(p, "thunder");
   if (!entry) return;
 
-  const def = getWeapon("thunder");
+  const def = getWeapon(entry.weaponId);
   if (!def) return;
 
   const ws = weaponStats(def, entry.level);
@@ -408,7 +412,7 @@ function thunderTick(state, dt) {
       const dy = e.y - target.y;
       if (dx * dx + dy * dy > radiusSq) continue;
 
-      dealThunderDamage(state, e, baseDmg, "thunder");
+      dealThunderDamage(state, e, baseDmg, entry.weaponId);
       directHits.push(e);
       hitCount += 1;
     }
@@ -438,7 +442,7 @@ function thunderTick(state, dt) {
           chainRange,
           chainFalloff,
           baseDmg,
-          sourceId: "thunder",
+          sourceId: entry.weaponId,
           blocked: chainedEnemies,
         });
       }
@@ -450,7 +454,10 @@ function slashTick(state, dt) {
   const p = state.player;
   if (!p.weapons) return;
 
-  const entry = findOwned(p, "reppuzan") ?? findOwned(p, "slash");
+  const entry =
+    findOwned(p, "reppuzan") ??
+    findOwned(p, "mikazukizan") ??
+    findOwned(p, "slash");
   if (!entry) return;
 
   const def = getWeapon(entry.weaponId);
@@ -473,7 +480,12 @@ function slashTick(state, dt) {
   p[cdKey] += scaleAttackInterval(state, ws.interval ?? 0.7);
 
   const multi = Math.max(1, Math.round(ws.multi ?? 1));
-  const spread = entry.weaponId === "reppuzan" ? 0.34 : 0.12;
+  const spread =
+    entry.weaponId === "reppuzan"
+      ? 0.34
+      : entry.weaponId === "mikazukizan"
+        ? 0.2
+        : 0.12;
   const offsets = getProjectileAngleOffsets(entry.weaponId, multi, spread);
   const hitEnemies = new WeakSet();
 
@@ -488,9 +500,12 @@ function slashTick(state, dt) {
       angleDeg: ws.angleDeg ?? 82,
       dmg: scaleDamage(state, ws.dmg ?? 36),
       knock: ws.knock ?? 70,
-      maxTargets: entry.weaponId === "reppuzan"
-        ? 4 + Math.max(0, Math.round(ws.pierce ?? 0))
-        : 2 + Math.max(0, Math.round(ws.pierce ?? 0)),
+      maxTargets:
+        entry.weaponId === "reppuzan"
+          ? 4 + Math.max(0, Math.round(ws.pierce ?? 0))
+          : entry.weaponId === "mikazukizan"
+            ? 3 + Math.max(0, Math.round(ws.pierce ?? 0))
+            : 2 + Math.max(0, Math.round(ws.pierce ?? 0)),
       hitEnemies,
     });
   }
@@ -510,6 +525,7 @@ function performSlashArcAttack(state, config) {
     hitEnemies,
   } = config;
   const isReppuzan = sourceId === "reppuzan";
+  const isMikazukizan = sourceId === "mikazukizan";
   const halfAngle = ((angleDeg ?? 90) * Math.PI) / 360;
   let hits = 0;
 
@@ -534,7 +550,7 @@ function performSlashArcAttack(state, config) {
     hits += 1;
 
     if (!enemy.isBoss) {
-      enemy.knock = Math.min(isReppuzan ? 230 : 190, (enemy.knock || 0) + knock);
+      enemy.knock = Math.min(isReppuzan ? 230 : isMikazukizan ? 205 : 190, (enemy.knock || 0) + knock);
     }
 
     state.fx.push({
@@ -549,7 +565,14 @@ function performSlashArcAttack(state, config) {
     });
   }
 
-  const blocked = blockHostileProjectilesInSlashArc(state, x, y, range + (isReppuzan ? 42 : 24), angle, halfAngle);
+  const blocked = blockHostileProjectilesInSlashArc(
+    state,
+    x,
+    y,
+    range + (isReppuzan ? 42 : isMikazukizan ? 32 : 24),
+    angle,
+    halfAngle,
+  );
   if (blocked > 0) {
     state.hitStop = Math.min(0.06, (state.hitStop || 0) + 0.015);
   } else if (hits > 0) {
@@ -559,7 +582,7 @@ function performSlashArcAttack(state, config) {
   state.fx.push({
     kind: "slashArc",
     t: 0,
-    dur: isReppuzan ? 0.16 : 0.12,
+    dur: isReppuzan ? 0.16 : isMikazukizan ? 0.14 : 0.12,
     x,
     y,
     angle,

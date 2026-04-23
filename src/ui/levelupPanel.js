@@ -7,7 +7,8 @@
   addWeapon,
   applyEvolution,
 } from "../data/upgrades.js";
-import { getWeapon } from "../data/weapons.js";
+import { getEvolutionWeaponsForBase, getWeapon } from "../data/weapons.js";
+import { getHero } from "../data/heroes.js";
 import { PATHS } from "../../paths.js";
 
 const WEAPON_ICONS = {
@@ -17,10 +18,15 @@ const WEAPON_ICONS = {
   slash: PATHS.slashIcon,
   thunder: PATHS.thunderIcon,
   blastchain: PATHS.ofudaIcon,
+  senrenfuda: PATHS.ofudaIcon,
   blossomstorm: PATHS.petalIcon,
+  fujinranbu: PATHS.petalIcon,
   raiukekkai: PATHS.thunderIcon,
+  raijinpa: PATHS.thunderIcon,
   reppufuda: PATHS.orbitIcon,
+  hannekekkai: PATHS.orbitIcon,
   reppuzan: PATHS.slashIcon,
+  mikazukizan: PATHS.slashIcon,
 };
 
 const ITEM_VISUALS = {
@@ -51,7 +57,7 @@ export function createLevelupPanel(refs, state, hud, audio) {
         applyOption(state, opt, hud);
         refs.panel.style.display = "none";
         state.pausedForChoice = false;
-        hud.flash(opt.isEvolution ? `進化: ${opt.name}` : `獲得: ${opt.name}`);
+        hud.flash(opt.isEvolution ? `${opt.evolutionLabel ?? "進化"}: ${opt.name}` : `獲得: ${opt.name}`);
       });
       refs.choicesEl.appendChild(div);
     });
@@ -199,7 +205,7 @@ function renderBossRewardReelContent(visual, index) {
     renderIcon(visual),
     `<div class="bossRewardText">`,
     `<b>${escapeHtml(visual.title)}</b>`,
-    `<small>${escapeHtml(visual.tag ?? "強化")}</small>`,
+    `<small class="${escapeHtml(visual.tagClass ?? "")}">${escapeHtml(visual.tag ?? "強化")}</small>`,
     `</div>`,
   ].join("");
 }
@@ -233,15 +239,21 @@ function getBossRewardPreviewOptions(player) {
 function buildOptionCard(opt, player) {
   const visual = getOptionVisual(opt, player);
   const div = document.createElement("div");
-  div.className = `choice ${visual.kindClass}${opt.isEvolution ? " choice--evolve" : ""}`;
+  div.className = [
+    "choice",
+    visual.kindClass,
+    opt.isEvolution ? "choice--evolve" : "",
+    visual.evolutionKindClass ?? "",
+  ].filter(Boolean).join(" ");
   div.innerHTML = [
     `<div class="choiceCardTop">`,
     renderIcon(visual),
     `<div class="choiceCardHeader">`,
-    `<span class="choiceTag">${escapeHtml(visual.tag)}</span>`,
+    `<span class="choiceTag ${escapeHtml(visual.tagClass ?? "")}">${escapeHtml(visual.tag)}</span>`,
     `<b>${escapeHtml(visual.title)}</b>`,
     `</div>`,
     `</div>`,
+    visual.detailHtml ?? "",
     visual.recipeHtml ?? "",
     `<small>${escapeHtml(visual.summary)}</small>`,
   ].join("");
@@ -267,13 +279,29 @@ function buildCustomChoiceCard(choice) {
 function getOptionVisual(opt, player) {
   if (opt.kind === "weapon_evolve") {
     const weapon = getWeapon(opt.weaponId);
+    const isUniqueEvolution = !!opt.isUniqueEvolution;
+    const hero = getHero(player?.heroId);
+    const ownerText = isUniqueEvolution
+      ? `${hero?.name ?? "現在の主人公"}専用`
+      : "全主人公で選択可";
+    const detailHtml = isUniqueEvolution
+      ? [
+        `<div class="choiceEvolutionMeta choiceEvolutionMeta--unique">`,
+        `<span class="choiceEvolutionStar" aria-hidden="true">★</span>`,
+        `<span>${escapeHtml(ownerText)}</span>`,
+        `</div>`,
+      ].join("")
+      : `<div class="choiceEvolutionMeta choiceEvolutionMeta--common">${escapeHtml(ownerText)}</div>`;
     return {
-      tag: "進化",
+      tag: opt.evolutionLabel ?? "進化",
       title: weapon?.name ?? opt.name,
       summary: shortDesc(weapon?.desc ?? opt.desc, 38),
       kindClass: "choice--weapon",
+      evolutionKindClass: isUniqueEvolution ? "choice--evolve-unique" : "choice--evolve-common",
       iconSrc: WEAPON_ICONS[opt.weaponId] ?? "",
       badge: "EV",
+      tagClass: isUniqueEvolution ? "choiceTag--unique" : "choiceTag--common",
+      detailHtml,
     };
   }
 
@@ -367,11 +395,14 @@ function findItemDefByName(name) {
 }
 
 function findEvolutionRequirementForWeapon(weaponId) {
-  const evolvedWeapon = ["blastchain", "blossomstorm", "raiukekkai", "reppufuda", "reppuzan"]
-    .map((id) => getWeapon(id))
-    .find((weapon) => weapon?.evolveWeaponId === weaponId);
-  if (!evolvedWeapon?.requiredStatKey) return null;
-  return ITEM_DEFS[evolvedWeapon.requiredStatKey] ?? null;
+  const evolvedWeapons = getEvolutionWeaponsForBase(weaponId);
+  const requiredKeys = [...new Set(
+    evolvedWeapons
+      .map((weapon) => weapon?.requiredStatKey)
+      .filter(Boolean),
+  )];
+  if (requiredKeys.length !== 1) return null;
+  return ITEM_DEFS[requiredKeys[0]] ?? null;
 }
 
 function escapeHtml(text) {

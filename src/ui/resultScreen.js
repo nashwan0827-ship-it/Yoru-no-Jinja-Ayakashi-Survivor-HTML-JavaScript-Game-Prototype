@@ -1,13 +1,28 @@
-import { savePrefs } from "../core/save.js";
+import { savePrefsFromState } from "../core/save.js";
 import { getNextStageDifficultyId, getNextStageId, getStage, getStageClearText } from "../data/stages.js";
 import { getFamiliar, grantFamiliarMasteryXp } from "../data/familiars.js";
 import { getWeapon } from "../data/weapons.js";
 
 const HIGH_SCORE_STORAGE_KEY = "ayakasi_v8_high_score";
 
-export function createResultScreens({ state, refs, audio, pausePanel, onRetry, onTitle }) {
+export function createResultScreens({
+  state,
+  refs,
+  audio,
+  pausePanel,
+  onRetry,
+  onTitle,
+  onClear,
+}) {
   const gameOverScreen = document.getElementById("gameOverScreen");
   const gameClearScreen = document.getElementById("gameClearScreen");
+  let clearCodaTimeoutId = 0;
+
+  function clearStageClearTimeout() {
+    if (!clearCodaTimeoutId) return;
+    window.clearTimeout(clearCodaTimeoutId);
+    clearCodaTimeoutId = 0;
+  }
 
   function showGameOver() {
     state.gameEnded = true;
@@ -30,6 +45,8 @@ export function createResultScreens({ state, refs, audio, pausePanel, onRetry, o
   }
 
   function showGameClear() {
+    clearStageClearTimeout();
+
     const clearText = getStageClearText(state.stage);
     const unlockedStageId = unlockNextStageAfterClear();
     const unlockedDifficultyId = unlockNextDifficultyAfterClear();
@@ -58,16 +75,16 @@ export function createResultScreens({ state, refs, audio, pausePanel, onRetry, o
     if (subEl) {
       let unlockText = clearText.resultSubText;
       if (unlockedStageId) {
-        unlockText += ` ${getStage(unlockedStageId).name}\u304c\u89e3\u653e\u3055\u308c\u305f\u3002`;
+        unlockText += ` ${getStage(unlockedStageId).name}が解放された。`;
       }
       if (unlockedDifficultyId) {
-        unlockText += ` ${getStage(state.stage).name} ${getStageDifficultyLabel(unlockedDifficultyId)}\u304c\u89e3\u653e\u3055\u308c\u305f\u3002`;
+        unlockText += ` ${getStage(state.stage).name} ${getStageDifficultyLabel(unlockedDifficultyId)}が解放された。`;
       }
       const soulShardText = (state.runSoulShards ?? 0) > 0
-        ? ` \u9b42\u7247+${state.runSoulShards}\u3002`
+        ? ` 魂片+${state.runSoulShards}。`
         : "";
       subEl.textContent = familiarMasteryResult
-        ? `${unlockText} ${familiarMasteryResult.name} \u719f\u7df4\u5ea6+${familiarMasteryResult.xp}${familiarMasteryResult.levelUps > 0 ? ` Lv${familiarMasteryResult.level}` : ""}\u3002`
+        ? `${unlockText} ${familiarMasteryResult.name} 熟練度+${familiarMasteryResult.xp}${familiarMasteryResult.levelUps > 0 ? ` Lv${familiarMasteryResult.level}` : ""}。`
         : `${unlockText}${soulShardText}`;
       if (familiarMasteryResult && soulShardText) {
         subEl.textContent += soulShardText;
@@ -77,7 +94,36 @@ export function createResultScreens({ state, refs, audio, pausePanel, onRetry, o
     gameClearScreen.style.display = "flex";
   }
 
+  function startStageClearCoda() {
+    if (state.stageClearCoda?.active) return;
+    const clearText = getStageClearText(state.stage);
+
+    // クリア演出中は進行を止め、Wave10のボス再出現を防ぐ
+    state.gameEnded = true;
+    state.pausedForChoice = false;
+
+    state.stageClearCoda = {
+      active: true,
+      text: clearText.codaText,
+      subText: clearText.codaSubText,
+      t: 0,
+      dur: 0.95,
+    };
+
+    clearStageClearTimeout();
+    clearCodaTimeoutId = window.setTimeout(() => {
+      clearCodaTimeoutId = 0;
+      if (!state.stageClearCoda?.active) return;
+      if (typeof onClear === "function") {
+        onClear();
+        return;
+      }
+      showGameClear();
+    }, 950);
+  }
+
   function hide() {
+    clearStageClearTimeout();
     gameOverScreen.style.display = "none";
     gameClearScreen.style.display = "none";
   }
@@ -91,7 +137,7 @@ export function createResultScreens({ state, refs, audio, pausePanel, onRetry, o
     const xp = 16 + Math.max(1, state.stage) * 4;
     const result = grantFamiliarMasteryXp(progress, familiarId, xp);
     state.familiarProgress = result.progress;
-    savePrefs(state.familiarProgress);
+    savePrefsFromState(state);
     return {
       name: familiar.name,
       xp,
@@ -106,7 +152,7 @@ export function createResultScreens({ state, refs, audio, pausePanel, onRetry, o
 
     state.unlockedStageMax = nextStageId;
     state.selectedStageId = nextStageId;
-    savePrefs({
+    savePrefsFromState(state, {
       unlockedStageMax: state.unlockedStageMax,
       selectedStageId: state.selectedStageId,
     });
@@ -128,7 +174,7 @@ export function createResultScreens({ state, refs, audio, pausePanel, onRetry, o
       ...current,
       [stageId]: [...unlocked],
     };
-    savePrefs({ unlockedDifficulties: state.unlockedDifficulties });
+    savePrefsFromState(state, { unlockedDifficulties: state.unlockedDifficulties });
     window.dispatchEvent(new CustomEvent("difficulty-unlocks-changed"));
     return nextDifficultyId;
   }
@@ -139,6 +185,7 @@ export function createResultScreens({ state, refs, audio, pausePanel, onRetry, o
   document.getElementById("gcTitle")?.addEventListener("click", () => onTitle());
 
   return {
+    startStageClearCoda,
     showGameOver,
     showGameClear,
     hide,
@@ -174,7 +221,7 @@ function updateHighScore(score) {
 }
 
 function getDamageSourceName(sourceId) {
-  if (!sourceId) return "\u4e0d\u660e";
+  if (!sourceId) return "不明";
   const weapon = getWeapon(sourceId);
   if (weapon) return weapon.name;
   const familiar = getFamiliar(sourceId);
@@ -195,7 +242,7 @@ function renderDamageBreakdown(el, state) {
     .sort((a, b) => b.value - a.value);
 
   if (entries.length === 0) {
-    el.innerHTML = `<div class="damageEmpty">\u307e\u3060\u30c0\u30e1\u30fc\u30b8\u8a18\u9332\u306a\u3057</div>`;
+    el.innerHTML = `<div class="damageEmpty">まだダメージ記録なし</div>`;
     return;
   }
 

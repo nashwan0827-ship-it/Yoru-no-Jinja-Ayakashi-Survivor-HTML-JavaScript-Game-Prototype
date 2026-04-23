@@ -5,7 +5,7 @@ import { createAssets } from "./core/assets.js";
 import { createAudio } from "./core/audio.js";
 import { createBgmController } from "./core/bgmController.js";
 import { loadPrefs } from "./core/save.js";
-import { savePrefs } from "./core/save.js";
+import { savePrefsFromState } from "./core/save.js";
 
 import {
   createGameState,
@@ -21,7 +21,12 @@ import { createLevelupPanel } from "./ui/levelupPanel.js";
 import { createPausePanel } from "./ui/pauseMap.js";
 import { createResultScreens } from "./ui/resultScreen.js";
 
-import { stepSpawns, forceSpawnBoss, forceAdvanceWave } from "./systems/spawns.js";
+import {
+  stepSpawns,
+  spawnEnemyRing,
+  forceSpawnBoss,
+  forceAdvanceWave,
+} from "./systems/spawns.js";
 import { stepPlayer } from "./systems/player.js";
 import { stepFamiliars } from "./systems/familiars.js";
 import { stepProjectiles } from "./systems/projectiles.js";
@@ -32,9 +37,10 @@ import { stepFx } from "./systems/fx.js";
 import { renderWorld } from "./render/world.js";
 import { clamp } from "./core/utils.js";
 import { DEBUG_KEYS } from "./debug/config.js";
-import { getStage, getStageClearText } from "./data/stages.js";
+import { getStage } from "./data/stages.js";
 
 const BATTLE_RUNTIME_SELECTOR = '[data-battle-runtime="true"]';
+const MAX_DT = 1 / 30;
 
 // =========================
 // Boot
@@ -48,6 +54,7 @@ const assets = createAssets();
 const audio = createAudio();
 const state = createGameState();
 const savedPrefs = loadPrefs();
+state.prefs = savedPrefs;
 state.selectedHeroId = savedPrefs.selectedHeroId;
 state.selectedStageId = savedPrefs.selectedStageId;
 state.selectedDifficultyId = savedPrefs.selectedDifficultyId;
@@ -144,13 +151,13 @@ function clearBattleRuntime(options) {
 
 function toggleLoadoutPanels() {
   state.ui.showLoadoutPanels = !state.ui.showLoadoutPanels;
-  savePrefs({ showLoadoutPanels: state.ui.showLoadoutPanels });
+  savePrefsFromState(state, { showLoadoutPanels: state.ui.showLoadoutPanels });
   hud.flash(state.ui.showLoadoutPanels ? "装備パネル表示" : "装備パネル非表示");
 }
 
 function toggleEnemyHpBars() {
   state.ui.showEnemyHpBars = !state.ui.showEnemyHpBars;
-  savePrefs({ showEnemyHpBars: state.ui.showEnemyHpBars });
+  savePrefsFromState(state, { showEnemyHpBars: state.ui.showEnemyHpBars });
   hud.flash(state.ui.showEnemyHpBars ? "敵HPバー表示" : "敵HPバー非表示");
 }
 
@@ -166,6 +173,7 @@ resultScreens = createResultScreens({
   pausePanel,
   onRetry: queueFreshBattleStart,
   onTitle: backToTitle,
+  onClear: () => resultScreens.showGameClear(),
 });
 
 // =========================
@@ -266,7 +274,7 @@ function startGame() {
 
   if (refs.titleScreen) refs.titleScreen.style.display = "none";
 
-  state.spawn.spawnEnemyRing(getStage(state.stage).entrySpawnCount);
+  spawnEnemyRing(state, getStage(state.stage).entrySpawnCount);
 
   bgm.playGameBgm();
   hud.flash(getStage(state.stage).introText);
@@ -275,7 +283,7 @@ function startGame() {
 
 function backToTitle() {
   cleanupBattleScene();
-  const latestPrefs = loadPrefs();
+  const latestPrefs = state.prefs ?? savedPrefs;
   state.soulShards = latestPrefs.soulShards;
   state.permanentUpgrades = latestPrefs.permanentUpgrades;
   applyHeroStats(state, state.selectedHeroId);
@@ -354,28 +362,6 @@ if (refs.btnToTitle) {
   });
 }
 
-function startStageClearCoda() {
-  if (state.stageClearCoda?.active) return;
-  const clearText = getStageClearText(state.stage);
-
-  // クリア演出中は進行を止め、Wave10のボス再出現を防ぐ
-  state.gameEnded = true;
-  state.pausedForChoice = false;
-
-  state.stageClearCoda = {
-    active: true,
-    text: clearText.codaText,
-    subText: clearText.codaSubText,
-    t: 0,
-    dur: 0.95,
-  };
-
-  scheduleBattleTimeout(() => {
-    if (!state.stageClearCoda?.active) return;
-    resultScreens.showGameClear();
-  }, 950);
-}
-
 // =========================
 // Main Loop
 // =========================
@@ -385,7 +371,7 @@ function tick(now) {
 
   const dtRaw = (now - last) / 1000;
   last = now;
-  const dt = clamp(dtRaw, 0, 0.033);
+  const dt = clamp(dtRaw, 0, MAX_DT);
 
   if (!state.started) {
     cam.follow(state.player);
@@ -427,7 +413,7 @@ function tick(now) {
 
     if (state._shouldStageClear) {
       state._shouldStageClear = false;
-      startStageClearCoda();
+      resultScreens.startStageClearCoda();
     }
   }
 

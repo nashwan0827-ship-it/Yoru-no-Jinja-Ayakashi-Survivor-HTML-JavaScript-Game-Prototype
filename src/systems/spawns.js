@@ -1,8 +1,11 @@
-﻿import {
+import {
+  getEnemyTemplate,
   getBossConfig,
   getWaveProfile,
   isBossWave,
 } from "../data/stages.js";
+import { rand } from "../core/utils.js";
+import { PLAYER_CENTER_Y_OFFSET } from "../state/combatOffsets.js";
 
 export function stepSpawns(state, hud, audio, dt, levelupPanel) {
   state.bossActive = state.enemies.some((e) => e.isBoss);
@@ -88,7 +91,59 @@ export function stepSpawns(state, hud, audio, dt, levelupPanel) {
       profile.batchBase + elapsedBoost * profile.batchRamp,
       profile.batchCap,
     );
-    state.spawn.spawnEnemyRing(batch);
+    spawnEnemyRing(state, batch);
+  }
+}
+
+export function spawnEnemyRing(state, count) {
+  const p = state.player;
+  let fastPackSpawned = false;
+
+  for (let i = 0; i < count; i++) {
+    const t = getEnemyTemplate(state.stage, state.wave, state.selectedDifficultyId);
+
+    if (t.type === 4) {
+      if (!fastPackSpawned) {
+        spawnFastRushPack(state, t);
+        fastPackSpawned = true;
+      }
+      continue;
+    }
+
+    if (t.type === 6) {
+      spawnBoarRushPack(state, t);
+      continue;
+    }
+
+    const d = rand(320, 560);
+    const spawnPos = findSpawnAroundPlayer(state, p.x, p.y, d, 40);
+    state.enemies.push({
+      x: spawnPos.x,
+      y: spawnPos.y,
+      type: t.type,
+      r: t.r,
+      hp: t.hp + Math.floor(state.wave * 4),
+      hpMax: t.hp + Math.floor(state.wave * 4),
+      spd: t.spd + state.wave * 1.5,
+      dmg: t.dmg,
+      color: t.color,
+      name: t.name,
+      role: t.role,
+      preferredRange: t.preferredRange,
+      attackRange: t.attackRange,
+      attackInterval: t.attackInterval,
+      projectileSpeed: t.projectileSpeed,
+      projectileRadius: t.projectileRadius,
+      projectileDamage: t.projectileDamage,
+      projectileColor: t.projectileColor,
+      knock: 0,
+      noKnock: t.noKnock || false,
+      face: 1,
+      isBoss: false,
+      bossPhase: 0,
+      age: 0,
+      lifeTime: getEnemyLifeTime(t.type),
+    });
   }
 }
 
@@ -162,7 +217,7 @@ function advanceWave(state, hud, audio) {
 
   hud.flash(`Wave ${state.wave}\uff1a\u5996\u6c17\u304c\u4e00\u6bb5\u3068\u6fc3\u304f\u306a\u308b\u2026`);
   const profile = getWaveProfile(state.stage, state.wave);
-  state.spawn.spawnEnemyRing(profile.entryBurst);
+  spawnEnemyRing(state, profile.entryBurst);
 }
 
 function startBossWarning(state, audio) {
@@ -240,16 +295,119 @@ function spawnBoss(state, hud, audio) {
   hud.flash(`\u30dc\u30b9\u51fa\u73fe\uff01 ${bossName}`);
 }
 
+function spawnBoarRushPack(state, template) {
+  const p = state.player;
+  const packSize = 3;
+  const angle = rand(0, Math.PI * 2);
+  const dirX = Math.cos(angle + Math.PI);
+  const dirY = Math.sin(angle + Math.PI);
+  const sideX = -dirY;
+  const sideY = dirX;
+  const distance = rand(430, 590);
+  const baseX = p.x - dirX * distance;
+  const baseY = p.y + PLAYER_CENTER_Y_OFFSET - dirY * distance;
+
+  for (let i = 0; i < packSize; i++) {
+    const row = i - (packSize - 1) * 0.5;
+    const spread = row * 46 + rand(-6, 6);
+    const stagger = rand(-18, 18);
+    const spawnPos = clampPointInsideMap(
+      state,
+      baseX + sideX * spread - dirX * stagger,
+      baseY + sideY * spread - dirY * stagger,
+      40,
+    );
+    const speed = template.spd + state.wave * 1.5;
+
+    state.enemies.push({
+      x: spawnPos.x,
+      y: spawnPos.y,
+      type: template.type,
+      r: template.r,
+      hp: template.hp + Math.floor(state.wave * 4),
+      hpMax: template.hp + Math.floor(state.wave * 4),
+      spd: speed,
+      dmg: template.dmg,
+      color: template.color,
+      knock: 0,
+      noKnock: false,
+      face: dirX < 0 ? -1 : 1,
+      isBoss: false,
+      bossPhase: 0,
+      age: 0,
+      lifeTime: getEnemyLifeTime(template.type),
+      boarState: "idle",
+      boarTimer: 0,
+      boarCooldown: rand(0.2, 0.55),
+      boarDashDirX: dirX,
+      boarDashDirY: dirY,
+      boarChargeDur: rand(0.42, 0.58),
+      boarRushDur: rand(0.34, 0.46),
+      boarRecoverDur: rand(0.32, 0.46),
+      boarRushSpeed: speed * 3.35,
+      boarTriggerRange: rand(260, 340),
+    });
+  }
+}
+
+function spawnFastRushPack(state, template) {
+  const p = state.player;
+  const packSize = 6;
+  const angle = rand(0, Math.PI * 2);
+  const dirX = Math.cos(angle + Math.PI);
+  const dirY = Math.sin(angle + Math.PI);
+  const sideX = -dirY;
+  const sideY = dirX;
+  const distance = rand(620, 780);
+  const baseX = p.x - dirX * distance;
+  const baseY = p.y + PLAYER_CENTER_Y_OFFSET - dirY * distance;
+
+  for (let i = 0; i < packSize; i++) {
+    const row = i - (packSize - 1) * 0.5;
+    const stagger = rand(-34, 34);
+    const spread = row * 24 + rand(-8, 8);
+    const spawnPos = clampPointInsideMap(
+      state,
+      baseX + sideX * spread - dirX * stagger,
+      baseY + sideY * spread - dirY * stagger,
+      40,
+    );
+    const speed = template.spd + state.wave * 1.5 + rand(18, 46);
+
+    state.enemies.push({
+      x: spawnPos.x,
+      y: spawnPos.y,
+      type: template.type,
+      r: template.r,
+      hp: template.hp + Math.floor(state.wave * 4),
+      hpMax: template.hp + Math.floor(state.wave * 4),
+      spd: speed,
+      dmg: template.dmg,
+      color: template.color,
+      knock: 0,
+      noKnock: true,
+      face: dirX < 0 ? -1 : 1,
+      isBoss: false,
+      bossPhase: 0,
+      age: 0,
+      lifeTime: 3.2,
+      fastRushDirX: dirX,
+      fastRushDirY: dirY,
+      fastRushSpeed: speed * 2.25,
+    });
+  }
+}
+
 function findSpawnAroundPlayer(
   state,
   centerX,
   centerY,
   distance,
   margin = 0,
-  attempts = 20,
+  attempts = 16,
 ) {
   for (let i = 0; i < attempts; i++) {
-    const ang = Math.random() * Math.PI * 2;
+    const ang = rand(0, Math.PI * 2);
     const x = centerX + Math.cos(ang) * distance;
     const y = centerY + Math.sin(ang) * distance;
     if (isPointInsideMap(state, x, y, margin)) {
@@ -285,4 +443,17 @@ function clampPointInsideMap(state, x, y, margin = 0) {
     x: map.centerX + dx * scale,
     y: map.centerY + dy * scale,
   };
+}
+
+function getEnemyLifeTime(type) {
+  switch (type) {
+    case 4:
+      return 8;
+    case 5:
+      return 24;
+    case 6:
+      return 20;
+    default:
+      return 18;
+  }
 }
