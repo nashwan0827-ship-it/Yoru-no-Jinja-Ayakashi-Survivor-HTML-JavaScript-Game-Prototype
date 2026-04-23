@@ -38,6 +38,13 @@ export function initTitleUI(refs, state, assets, audio, onSelectHero, onStart) {
   const openAchievementBtn = document.getElementById("openAchievementBtn");
   const closeAchievementBtn = document.getElementById("closeAchievementBtn");
   const achievementChoices = document.getElementById("achievementChoices");
+  const confirmOverlay = document.getElementById("confirmOverlay");
+  const closeConfirmBtn = document.getElementById("closeConfirmBtn");
+  const cancelConfirmBtn = document.getElementById("cancelConfirmBtn");
+  const acceptConfirmBtn = document.getElementById("acceptConfirmBtn");
+  const confirmTitle = document.getElementById("confirmTitle");
+  const confirmText = document.getElementById("confirmText");
+  const confirmCostText = document.getElementById("confirmCostText");
   const titleSoulShards = document.getElementById("titleSoulShards");
   const familiarSoulShards = document.getElementById("familiarSoulShards");
   const permanentSoulShards = document.getElementById("permanentSoulShards");
@@ -58,6 +65,7 @@ export function initTitleUI(refs, state, assets, audio, onSelectHero, onStart) {
   const difficultyButtons = Array.from(document.querySelectorAll(".difficultyBtn"));
   let introActive = !!intro;
   let resetConfirmTimer = 0;
+  let confirmAction = null;
 
   hydrateHeroCards(heroButtons);
   hydrateDifficultyButtons(difficultyButtons);
@@ -134,6 +142,20 @@ export function initTitleUI(refs, state, assets, audio, onSelectHero, onStart) {
       return false;
     }
 
+    const hero = HEROES.find((entry) => entry.id === id);
+    openSpendConfirm({
+      title: "主人公の解放",
+      text: `${hero?.name ?? "主人公"}を開放しますか？`,
+      cost,
+      onConfirm: () => completeHeroUnlock(id, cost),
+    });
+    return false;
+  }
+
+  function completeHeroUnlock(id, cost) {
+    refreshSoulShardDisplays();
+    const current = Math.max(0, Math.floor(state.soulShards ?? 0));
+    if (current < cost) return false;
     const unlockedHeroIds = [...getUnlockedHeroSet(), id].sort((a, b) => a - b);
     state.soulShards = current - cost;
     state.unlockedHeroIds = unlockedHeroIds;
@@ -231,6 +253,33 @@ export function initTitleUI(refs, state, assets, audio, onSelectHero, onStart) {
     achievementOverlay.setAttribute("aria-hidden", "true");
   }
 
+  function openSpendConfirm({ title, text, cost, onConfirm }) {
+    if (!confirmOverlay) {
+      onConfirm?.();
+      return;
+    }
+    dismissIntro();
+    confirmAction = typeof onConfirm === "function" ? onConfirm : null;
+    if (confirmTitle) confirmTitle.textContent = title ?? "確認";
+    if (confirmText) confirmText.textContent = text ?? "この操作を実行しますか？";
+    if (confirmCostText) confirmCostText.textContent = `魂片 ${Math.max(0, Math.floor(cost ?? 0)).toLocaleString()}`;
+    confirmOverlay.classList.add("is-open");
+    confirmOverlay.setAttribute("aria-hidden", "false");
+  }
+
+  function closeSpendConfirm() {
+    if (!confirmOverlay) return;
+    confirmOverlay.classList.remove("is-open");
+    confirmOverlay.setAttribute("aria-hidden", "true");
+    confirmAction = null;
+  }
+
+  function acceptSpendConfirm() {
+    const action = confirmAction;
+    closeSpendConfirm();
+    action?.();
+  }
+
   function getPermanentProgress() {
     const latestPrefs = loadPrefs();
     return state.permanentUpgrades ?? latestPrefs.permanentUpgrades ?? {};
@@ -287,6 +336,21 @@ export function initTitleUI(refs, state, assets, audio, onSelectHero, onStart) {
     const current = Math.max(0, Math.floor(state.soulShards ?? 0));
     if (current < cost) return false;
 
+    const upgrade = PERMANENT_UPGRADES.find((entry) => entry.key === key);
+    openSpendConfirm({
+      title: "恒久強化",
+      text: `${upgrade?.name ?? "強化"}を購入しますか？`,
+      cost,
+      onConfirm: () => completePermanentUpgrade(key, cost),
+    });
+    return false;
+  }
+
+  function completePermanentUpgrade(key, cost) {
+    const progress = getPermanentProgress();
+    refreshSoulShardDisplays();
+    const current = Math.max(0, Math.floor(state.soulShards ?? 0));
+    if (current < cost) return false;
     const nextProgress = {
       ...progress,
       [key]: getPermanentUpgradeLevel(progress, key) + 1,
@@ -391,6 +455,19 @@ export function initTitleUI(refs, state, assets, audio, onSelectHero, onStart) {
     const current = Math.max(0, Math.floor(state.soulShards ?? 0));
     if (current < cost) return false;
 
+    openSpendConfirm({
+      title: "式神の解放",
+      text: `${familiar.name}を開放しますか？`,
+      cost,
+      onConfirm: () => completeFamiliarUnlock(familiarId, progress, cost),
+    });
+    return false;
+  }
+
+  function completeFamiliarUnlock(familiarId, progress, cost) {
+    refreshSoulShardDisplays();
+    const current = Math.max(0, Math.floor(state.soulShards ?? 0));
+    if (current < cost) return false;
     const unlockedFamiliars = [...new Set([...(progress.unlockedFamiliars ?? []), familiarId])];
     state.soulShards = current - cost;
     state.familiarProgress = {
@@ -601,6 +678,9 @@ export function initTitleUI(refs, state, assets, audio, onSelectHero, onStart) {
   closePermanentBtn?.addEventListener("click", () => closePermanentPanel());
   openAchievementBtn?.addEventListener("click", () => openAchievementPanel());
   closeAchievementBtn?.addEventListener("click", () => closeAchievementPanel());
+  closeConfirmBtn?.addEventListener("click", () => closeSpendConfirm());
+  cancelConfirmBtn?.addEventListener("click", () => closeSpendConfirm());
+  acceptConfirmBtn?.addEventListener("click", () => acceptSpendConfirm());
   configOverlay?.addEventListener("click", (e) => {
     if (e.target === configOverlay) closeConfig();
   });
@@ -613,9 +693,17 @@ export function initTitleUI(refs, state, assets, audio, onSelectHero, onStart) {
   achievementOverlay?.addEventListener("click", (e) => {
     if (e.target === achievementOverlay) closeAchievementPanel();
   });
+  confirmOverlay?.addEventListener("click", (e) => {
+    if (e.target === confirmOverlay) closeSpendConfirm();
+  });
 
   window.addEventListener("keydown", (e) => {
     if (state.started) return;
+    if (e.key === "Escape" && confirmOverlay?.classList.contains("is-open")) {
+      e.preventDefault();
+      closeSpendConfirm();
+      return;
+    }
     if (e.key === "Escape" && familiarOverlay?.classList.contains("is-open")) {
       e.preventDefault();
       closeFamiliarPanel();
