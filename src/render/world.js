@@ -816,6 +816,11 @@ function drawProjectiles(ctx, W, H, cam, assets, state) {
       continue;
     }
 
+    if (p.kind === "kodamaOrb") {
+      drawKodamaProjectile(ctx, state, p, sx, sy);
+      continue;
+    }
+
     // 汎用弾の描画
     ctx.save();
     ctx.globalAlpha = 0.95;
@@ -825,6 +830,37 @@ function drawProjectiles(ctx, W, H, cam, assets, state) {
     ctx.fill();
     ctx.restore();
   }
+}
+
+function drawKodamaProjectile(ctx, state, p, sx, sy) {
+  const t = state.timeSurvived ?? 0;
+  const pulse = 0.88 + 0.12 * Math.sin(t * 8 + (p.age ?? 0) * 18);
+  const radius = (p.r ?? 7) * pulse;
+
+  ctx.save();
+  ctx.globalCompositeOperation = "screen";
+  ctx.globalAlpha = 0.86;
+  const glow = ctx.createRadialGradient(sx, sy, 1, sx, sy, radius * 3.4);
+  glow.addColorStop(0, "rgba(245,255,255,0.98)");
+  glow.addColorStop(0.35, "rgba(118,245,255,0.62)");
+  glow.addColorStop(1, "rgba(118,245,255,0)");
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.arc(sx, sy, radius * 3.4, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.globalAlpha = 0.95;
+  ctx.fillStyle = "rgba(232, 255, 255, 0.96)";
+  ctx.beginPath();
+  ctx.arc(sx, sy, radius, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.globalAlpha = 0.78;
+  ctx.fillStyle = "rgba(154, 255, 255, 0.86)";
+  ctx.beginPath();
+  ctx.arc(sx + radius * 0.2, sy - radius * 0.2, radius * 0.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
 }
 
 function drawHostileProjectiles(ctx, W, H, cam, state) {

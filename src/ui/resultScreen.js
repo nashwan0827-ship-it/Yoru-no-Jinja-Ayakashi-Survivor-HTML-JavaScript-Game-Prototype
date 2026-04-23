@@ -1,4 +1,5 @@
 import { savePrefsFromState } from "../core/save.js";
+import { createDefaultAchievementProgress, getStageFirstClearReward } from "../data/achievements.js";
 import { getNextStageDifficultyId, getNextStageId, getStage, getStageClearText } from "../data/stages.js";
 import { getFamiliar, grantFamiliarMasteryXp } from "../data/familiars.js";
 import { getWeapon } from "../data/weapons.js";
@@ -25,6 +26,7 @@ export function createResultScreens({
   }
 
   function showGameOver() {
+    persistAchievementProgress();
     state.gameEnded = true;
     state.pausedForChoice = false;
     state.activeFamiliars.length = 0;
@@ -48,9 +50,11 @@ export function createResultScreens({
     clearStageClearTimeout();
 
     const clearText = getStageClearText(state.stage);
+    const firstClearReward = grantStageFirstClearReward();
     const unlockedStageId = unlockNextStageAfterClear();
     const unlockedDifficultyId = unlockNextDifficultyAfterClear();
     const familiarMasteryResult = grantEquippedFamiliarMasteryAfterClear();
+    persistAchievementProgress();
 
     state.gameEnded = true;
     state.pausedForChoice = false;
@@ -79,6 +83,9 @@ export function createResultScreens({
       }
       if (unlockedDifficultyId) {
         unlockText += ` ${getStage(state.stage).name} ${getStageDifficultyLabel(unlockedDifficultyId)}が解放された。`;
+      }
+      if (firstClearReward > 0) {
+        unlockText += ` 初回クリア報酬 魂片+${firstClearReward}。`;
       }
       const soulShardText = (state.runSoulShards ?? 0) > 0
         ? ` 魂片+${state.runSoulShards}。`
@@ -144,6 +151,30 @@ export function createResultScreens({
       level: result.mastery.level,
       levelUps: result.levelUps,
     };
+  }
+
+  function grantStageFirstClearReward() {
+    const progress = state.achievementProgress ?? createDefaultAchievementProgress();
+    const reward = getStageFirstClearReward(state.stage, progress);
+    if (reward <= 0) return 0;
+
+    progress.clearedStageIds = [...new Set([...(progress.clearedStageIds ?? []), state.stage])];
+    state.achievementProgress = progress;
+    state.soulShards = Math.max(0, Math.floor(state.soulShards ?? 0)) + reward;
+    state.runSoulShards = Math.max(0, Math.floor(state.runSoulShards ?? 0)) + reward;
+    savePrefsFromState(state, {
+      soulShards: state.soulShards,
+      achievementProgress: progress,
+    });
+    window.dispatchEvent(new CustomEvent("soul-shards-changed"));
+    return reward;
+  }
+
+  function persistAchievementProgress() {
+    const totalKills = state.achievementProgress?.totalKills ?? 0;
+    if (totalKills === (state._lastSavedAchievementTotalKills ?? 0)) return;
+    savePrefsFromState(state, { achievementProgress: state.achievementProgress });
+    state._lastSavedAchievementTotalKills = totalKills;
   }
 
   function unlockNextStageAfterClear() {

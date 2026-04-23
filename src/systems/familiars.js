@@ -402,6 +402,11 @@ function updateFamiliarAttack(state, hud, audio, familiar, def, dt) {
     return;
   }
 
+  if (def.id === KODAMA_FAMILIAR_ID) {
+    fireKodamaProjectile(state, familiar, def, target);
+    return;
+  }
+
   const isKodama = def.id === KODAMA_FAMILIAR_ID;
   const damage = applyPriorityTargetDamageBonus(state, target, getFamiliarDamage(state, def));
   recordEnemyDamage(state, familiar.id, target, damage);
@@ -632,6 +637,31 @@ function startFamiliarTackle(state, familiar, def, target) {
     toY: target.y,
     t: 0,
     dur: familiar.tackle.dur,
+  });
+}
+
+function fireKodamaProjectile(state, familiar, def, target) {
+  if (!target || target.hp <= 0) return;
+
+  const dx = target.x - familiar.x;
+  const dy = target.y - familiar.y;
+  const dist = Math.hypot(dx, dy) || 1;
+  const speed = def.projectileSpeed ?? 360;
+  const nx = dx / dist;
+  const ny = dy / dist;
+
+  state.projectiles.push({
+    kind: "kodamaOrb",
+    x: familiar.x + nx * 10,
+    y: familiar.y + ny * 10,
+    vx: nx * speed,
+    vy: ny * speed,
+    rot: Math.atan2(ny, nx),
+    life: def.projectileLife ?? 0.9,
+    r: def.projectileRadius ?? 7,
+    dmg: getFamiliarDamage(state, def),
+    pierce: 0,
+    damageSource: familiar.id ?? KODAMA_FAMILIAR_ID,
   });
 }
 

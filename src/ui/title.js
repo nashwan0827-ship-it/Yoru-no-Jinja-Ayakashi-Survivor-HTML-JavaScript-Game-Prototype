@@ -13,6 +13,10 @@ import {
   FAMILIARS,
   getFamiliarMasteryBonus,
 } from "../data/familiars.js";
+import {
+  KILL_MILESTONE_REWARDS,
+  STAGE_FIRST_CLEAR_REWARDS,
+} from "../data/achievements.js";
 
 export function initTitleUI(refs, state, assets, audio, onSelectHero, onStart) {
   const prefs = state.prefs ?? loadPrefs();
@@ -30,9 +34,14 @@ export function initTitleUI(refs, state, assets, audio, onSelectHero, onStart) {
   const openPermanentBtn = document.getElementById("openPermanentBtn");
   const closePermanentBtn = document.getElementById("closePermanentBtn");
   const permanentChoices = document.getElementById("permanentChoices");
+  const achievementOverlay = document.getElementById("achievementOverlay");
+  const openAchievementBtn = document.getElementById("openAchievementBtn");
+  const closeAchievementBtn = document.getElementById("closeAchievementBtn");
+  const achievementChoices = document.getElementById("achievementChoices");
   const titleSoulShards = document.getElementById("titleSoulShards");
   const familiarSoulShards = document.getElementById("familiarSoulShards");
   const permanentSoulShards = document.getElementById("permanentSoulShards");
+  const achievementSoulShards = document.getElementById("achievementSoulShards");
   const b1 = refs.heroBtn1;
   const b2 = refs.heroBtn2;
   const b3 = refs.heroBtn3;
@@ -62,6 +71,7 @@ export function initTitleUI(refs, state, assets, audio, onSelectHero, onStart) {
     if (titleSoulShards) titleSoulShards.textContent = amount.toLocaleString();
     if (familiarSoulShards) familiarSoulShards.textContent = text;
     if (permanentSoulShards) permanentSoulShards.textContent = text;
+    if (achievementSoulShards) achievementSoulShards.textContent = text;
   }
 
   function getUnlockedHeroSet() {
@@ -204,6 +214,21 @@ export function initTitleUI(refs, state, assets, audio, onSelectHero, onStart) {
     if (!permanentOverlay) return;
     permanentOverlay.classList.remove("is-open");
     permanentOverlay.setAttribute("aria-hidden", "true");
+  }
+
+  function openAchievementPanel() {
+    if (!achievementOverlay) return;
+    dismissIntro();
+    refreshSoulShardDisplays();
+    renderAchievementChoices();
+    achievementOverlay.classList.add("is-open");
+    achievementOverlay.setAttribute("aria-hidden", "false");
+  }
+
+  function closeAchievementPanel() {
+    if (!achievementOverlay) return;
+    achievementOverlay.classList.remove("is-open");
+    achievementOverlay.setAttribute("aria-hidden", "true");
   }
 
   function getPermanentProgress() {
@@ -382,6 +407,55 @@ export function initTitleUI(refs, state, assets, audio, onSelectHero, onStart) {
     return true;
   }
 
+  function getAchievementProgress() {
+    const latestPrefs = loadPrefs();
+    return state.achievementProgress ?? latestPrefs.achievementProgress ?? {
+      totalKills: 0,
+      rewardedKillMilestones: [],
+      clearedStageIds: [],
+    };
+  }
+
+  function renderAchievementChoices() {
+    if (!achievementChoices) return;
+
+    const progress = getAchievementProgress();
+    const totalKills = Math.max(0, Math.floor(progress.totalKills ?? 0));
+    const rewardedKillMilestones = new Set(progress.rewardedKillMilestones ?? []);
+    const clearedStageIds = new Set(progress.clearedStageIds ?? []);
+
+    const killCards = KILL_MILESTONE_REWARDS.map((entry) => {
+      const complete = rewardedKillMilestones.has(entry.kills);
+      const progressValue = Math.min(entry.kills, totalKills);
+      return renderAchievementCard({
+        title: `累計${entry.kills.toLocaleString()}体撃破`,
+        desc: `妖を累計${entry.kills.toLocaleString()}体倒す`,
+        reward: `魂片+${entry.soulShards}`,
+        complete,
+        progressValue,
+        progressMax: entry.kills,
+        progressLabel: `${progressValue.toLocaleString()} / ${entry.kills.toLocaleString()}`,
+      });
+    });
+
+    const stageCards = Object.entries(STAGE_FIRST_CLEAR_REWARDS).map(([stageId, reward]) => {
+      const stageNumber = Number(stageId);
+      const stage = STAGES.find((entry) => entry.id === stageNumber);
+      const complete = clearedStageIds.has(stageNumber);
+      return renderAchievementCard({
+        title: `${stage?.name ?? `第${stageNumber}幕`} 初回クリア`,
+        desc: `${stage?.name ?? `第${stageNumber}幕`}を初めてクリアする`,
+        reward: `魂片+${Number(reward).toLocaleString()}`,
+        complete,
+        progressValue: complete ? 1 : 0,
+        progressMax: 1,
+        progressLabel: complete ? "達成済み" : "未達成",
+      });
+    });
+
+    achievementChoices.innerHTML = [...killCards, ...stageCards].join("");
+  }
+
   function hideIntro() {
     if (!intro || !introActive) return;
 
@@ -513,6 +587,9 @@ export function initTitleUI(refs, state, assets, audio, onSelectHero, onStart) {
     if (permanentOverlay?.classList.contains("is-open")) {
       renderPermanentChoices();
     }
+    if (achievementOverlay?.classList.contains("is-open")) {
+      renderAchievementChoices();
+    }
   });
   introStartBtn?.addEventListener("click", () => hideIntro());
   openConfigBtn?.addEventListener("click", () => openConfig());
@@ -522,6 +599,8 @@ export function initTitleUI(refs, state, assets, audio, onSelectHero, onStart) {
   closeFamiliarBtn?.addEventListener("click", () => closeFamiliarPanel());
   openPermanentBtn?.addEventListener("click", () => openPermanentPanel());
   closePermanentBtn?.addEventListener("click", () => closePermanentPanel());
+  openAchievementBtn?.addEventListener("click", () => openAchievementPanel());
+  closeAchievementBtn?.addEventListener("click", () => closeAchievementPanel());
   configOverlay?.addEventListener("click", (e) => {
     if (e.target === configOverlay) closeConfig();
   });
@@ -530,6 +609,9 @@ export function initTitleUI(refs, state, assets, audio, onSelectHero, onStart) {
   });
   permanentOverlay?.addEventListener("click", (e) => {
     if (e.target === permanentOverlay) closePermanentPanel();
+  });
+  achievementOverlay?.addEventListener("click", (e) => {
+    if (e.target === achievementOverlay) closeAchievementPanel();
   });
 
   window.addEventListener("keydown", (e) => {
@@ -542,6 +624,11 @@ export function initTitleUI(refs, state, assets, audio, onSelectHero, onStart) {
     if (e.key === "Escape" && permanentOverlay?.classList.contains("is-open")) {
       e.preventDefault();
       closePermanentPanel();
+      return;
+    }
+    if (e.key === "Escape" && achievementOverlay?.classList.contains("is-open")) {
+      e.preventDefault();
+      closeAchievementPanel();
       return;
     }
     if (e.key === "Escape" && configOverlay?.classList.contains("is-open")) {
@@ -719,6 +806,36 @@ function bindConfigToggle(el, initialValue, onChange) {
   el.addEventListener("change", () => {
     onChange?.(!!el.checked);
   });
+}
+
+function renderAchievementCard({
+  title,
+  desc,
+  reward,
+  complete,
+  progressValue,
+  progressMax,
+  progressLabel,
+}) {
+  const safeMax = Math.max(1, Math.floor(progressMax ?? 1));
+  const safeValue = Math.max(0, Math.floor(progressValue ?? 0));
+  const pct = Math.max(0, Math.min(100, Math.round((safeValue / safeMax) * 100)));
+  return [
+    `<div class="achievementCard ${complete ? "is-complete" : "is-pending"}">`,
+    `<div class="achievementHead">`,
+    `<div class="achievementInfo">`,
+    `<b>${escapeHtml(title)}</b>`,
+    `<small>${escapeHtml(desc)}</small>`,
+    `<small>${escapeHtml(reward)}</small>`,
+    `</div>`,
+    `<span class="achievementBadge">${complete ? "達成済み" : "進行中"}</span>`,
+    `</div>`,
+    `<div class="achievementProgressRow">`,
+    `<div class="achievementProgress"><div class="achievementProgressFill" style="width:${pct}%"></div></div>`,
+    `<div class="achievementProgressText">${escapeHtml(progressLabel)}</div>`,
+    `</div>`,
+    `</div>`,
+  ].join("");
 }
 
 function renderFamiliarPortrait(familiar) {

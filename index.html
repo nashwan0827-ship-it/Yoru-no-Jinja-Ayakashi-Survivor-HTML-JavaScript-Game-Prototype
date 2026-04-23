@@ -1342,6 +1342,11 @@
         font-size: 13px;
         font-weight: 700;
       }
+      .titleIconBtn--achievement {
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+      }
       .titleCurrency {
         position: absolute;
         top: 14px;
@@ -1649,6 +1654,100 @@
       .permanentUpgradeBtn:disabled {
         cursor: default;
         opacity: 0.62;
+      }
+      .achievementDialog {
+        width: min(520px, 100%);
+      }
+      .achievementGrid {
+        display: grid;
+        gap: 8px;
+        margin-top: 10px;
+      }
+      .achievementCard {
+        display: grid;
+        gap: 8px;
+        padding: 11px 12px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.045);
+      }
+      .achievementCard.is-complete {
+        border-color: rgba(145, 244, 255, 0.28);
+        background:
+          linear-gradient(
+            180deg,
+            rgba(105, 244, 255, 0.08),
+            rgba(255, 255, 255, 0.035)
+          ),
+          rgba(255, 255, 255, 0.045);
+      }
+      .achievementCard.is-pending {
+        border-color: rgba(255, 214, 150, 0.16);
+      }
+      .achievementHead {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 10px;
+      }
+      .achievementInfo b,
+      .achievementInfo small {
+        display: block;
+      }
+      .achievementInfo b {
+        color: #fff2d4;
+        font-size: 13px;
+      }
+      .achievementInfo small {
+        margin-top: 3px;
+        color: rgba(235, 226, 205, 0.64);
+        font-size: 10.5px;
+        line-height: 1.35;
+      }
+      .achievementBadge {
+        flex: 0 0 auto;
+        padding: 5px 8px;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        background: rgba(255, 255, 255, 0.06);
+        color: rgba(243, 232, 211, 0.86);
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+      }
+      .achievementCard.is-complete .achievementBadge {
+        border-color: rgba(145, 244, 255, 0.24);
+        background: rgba(95, 235, 255, 0.08);
+        color: rgba(229, 255, 255, 0.92);
+      }
+      .achievementProgressRow {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .achievementProgress {
+        flex: 1 1 auto;
+        height: 8px;
+        border-radius: 999px;
+        overflow: hidden;
+        background: rgba(255, 255, 255, 0.07);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+      }
+      .achievementProgressFill {
+        height: 100%;
+        background: linear-gradient(
+          90deg,
+          rgba(115, 232, 255, 0.95),
+          rgba(255, 202, 124, 0.95)
+        );
+      }
+      .achievementProgressText {
+        flex: 0 0 auto;
+        min-width: 76px;
+        text-align: right;
+        color: rgba(243, 232, 211, 0.82);
+        font-size: 10px;
+        font-weight: 700;
       }
       .configToggle {
         width: 38px;
@@ -2642,6 +2741,14 @@
             式
           </button>
           <button
+            class="titleIconBtn titleIconBtn--achievement"
+            id="openAchievementBtn"
+            type="button"
+            aria-label="実績を開く"
+          >
+            実
+          </button>
+          <button
             class="titleIconBtn"
             id="openConfigBtn"
             type="button"
@@ -2943,6 +3050,38 @@
               </div>
             </div>
             <div class="permanentGrid" id="permanentChoices"></div>
+          </div>
+        </div>
+        <div class="configOverlay" id="achievementOverlay" aria-hidden="true">
+          <div
+            class="configDialog achievementDialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="achievementTitle"
+          >
+            <div class="configHead">
+              <h3 id="achievementTitle">実績</h3>
+              <button
+                class="configClose"
+                id="closeAchievementBtn"
+                type="button"
+                aria-label="実績を閉じる"
+              >
+                ×
+              </button>
+            </div>
+            <div class="configSectionLabel">進捗</div>
+            <div class="configPanel">
+              <div class="configLabel">
+                <b>累計撃破と初回クリア報酬</b>
+                <small>達成済みの報酬は自動で受け取り済みです。</small>
+              </div>
+              <div class="configCurrency" aria-label="魂片所持数">
+                <span class="configCurrencyIcon" aria-hidden="true"></span>
+                <span id="achievementSoulShards">魂片 0</span>
+              </div>
+            </div>
+            <div class="achievementGrid" id="achievementChoices"></div>
           </div>
         </div>
       </div>

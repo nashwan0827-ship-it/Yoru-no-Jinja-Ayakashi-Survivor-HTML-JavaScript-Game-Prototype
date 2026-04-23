@@ -64,7 +64,8 @@ export function stepDrops(state, hud, audio, levelup, dt){
 
     if(pickupDist < pickupRadius){
       if (d.kind === "soulShard") {
-        const amount = Math.max(1, Math.floor(d.amount ?? 1));
+        const baseAmount = Math.max(1, Math.floor(d.amount ?? 1));
+        const amount = baseAmount * getSoulShardDifficultyMultiplier(state.selectedDifficultyId);
         state.soulShards = Math.max(0, Math.floor(state.soulShards ?? 0)) + amount;
         state.runSoulShards = Math.max(0, Math.floor(state.runSoulShards ?? 0)) + amount;
         savePrefsFromState(state, { soulShards: state.soulShards });
@@ -82,4 +83,10 @@ export function stepDrops(state, hud, audio, levelup, dt){
       }
     }
   }
+}
+
+function getSoulShardDifficultyMultiplier(difficultyId) {
+  if (difficultyId === "hard") return 3;
+  if (difficultyId === "normal") return 2;
+  return 1;
 }

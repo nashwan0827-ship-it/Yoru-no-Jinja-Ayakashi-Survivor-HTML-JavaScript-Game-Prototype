@@ -8,6 +8,7 @@ import {
   getDefaultEquippedFamiliarId,
   getDefaultUnlockedFamiliarIds,
 } from "../data/familiars.js";
+import { createDefaultAchievementProgress } from "../data/achievements.js";
 
 const TRANSIENT_PLAYER_KEYS = ["ofudaRate"];
 
@@ -35,6 +36,7 @@ export function createGameState() {
       familiarMastery: {},
       familiarCountBonus: 0,
     },
+    achievementProgress: createDefaultAchievementProgress(),
 
     // ボス出現状態
     bossActive: false,
@@ -115,6 +117,7 @@ export function createGameState() {
     _fireCD: 0,
     _ofudaCD: 0,
     _spawnTimer: 0,
+    _lastSavedAchievementTotalKills: 0,
   };
 
   state.player.x = 0;

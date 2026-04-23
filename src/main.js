@@ -73,6 +73,8 @@ state.familiarProgress = {
   familiarMastery: savedPrefs.familiarMastery,
   familiarCountBonus: savedPrefs.familiarCountBonus,
 };
+state.achievementProgress = savedPrefs.achievementProgress;
+state._lastSavedAchievementTotalKills = savedPrefs.achievementProgress?.totalKills ?? 0;
 
 const hud = createHUD(refs);
 const levelup = createLevelupPanel(refs, state, hud, audio);

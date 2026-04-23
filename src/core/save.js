@@ -2,6 +2,7 @@
   getDefaultEquippedFamiliarId,
   getDefaultUnlockedFamiliarIds,
 } from "../data/familiars.js";
+import { createDefaultAchievementProgress } from "../data/achievements.js";
 import { getDefaultUnlockedHeroIds } from "../data/heroes.js";
 import { sanitizePermanentUpgrades } from "../data/permanentUpgrades.js";
 
@@ -31,6 +32,7 @@ const DEFAULT_PREFS = {
   familiarLevel: {},
   familiarMastery: {},
   familiarCountBonus: 0,
+  achievementProgress: createDefaultAchievementProgress(),
 };
 
 export function loadPrefs() {
@@ -64,6 +66,7 @@ export function loadPrefs() {
       familiarLevel: sanitizeLevelMap(parsed.familiarLevel, DEFAULT_PREFS.familiarLevel),
       familiarMastery: sanitizeFamiliarMastery(parsed.familiarMastery, DEFAULT_PREFS.familiarMastery),
       familiarCountBonus: sanitizeNonNegativeInt(parsed.familiarCountBonus, DEFAULT_PREFS.familiarCountBonus),
+      achievementProgress: sanitizeAchievementProgress(parsed.achievementProgress, DEFAULT_PREFS.achievementProgress),
     };
   } catch {
     return { ...DEFAULT_PREFS };
@@ -90,6 +93,7 @@ export function getPrefsFromState(state, currentPrefs = state?.prefs ?? {}) {
     familiarLevel: familiarProgress.familiarLevel ?? currentPrefs.familiarLevel,
     familiarMastery: familiarProgress.familiarMastery ?? currentPrefs.familiarMastery,
     familiarCountBonus: familiarProgress.familiarCountBonus ?? currentPrefs.familiarCountBonus,
+    achievementProgress: state?.achievementProgress ?? currentPrefs.achievementProgress,
   };
 }
 
@@ -122,6 +126,7 @@ export function savePrefs(currentPrefs = {}, partialPrefs = {}) {
   next.familiarLevel = sanitizeLevelMap(next.familiarLevel, DEFAULT_PREFS.familiarLevel);
   next.familiarMastery = sanitizeFamiliarMastery(next.familiarMastery, DEFAULT_PREFS.familiarMastery);
   next.familiarCountBonus = sanitizeNonNegativeInt(next.familiarCountBonus, DEFAULT_PREFS.familiarCountBonus);
+  next.achievementProgress = sanitizeAchievementProgress(next.achievementProgress, DEFAULT_PREFS.achievementProgress);
 
   try {
     window.localStorage.setItem(PREFS_STORAGE_KEY, JSON.stringify(next));
@@ -261,4 +266,25 @@ function sanitizeNonNegativeInt(value, fallback) {
   const number = Number(value);
   if (!Number.isInteger(number) || number < 0) return fallback;
   return number;
+}
+
+function sanitizeAchievementProgress(value, fallback) {
+  const source = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  return {
+    totalKills: sanitizeNonNegativeInt(source.totalKills, fallback.totalKills),
+    rewardedKillMilestones: sanitizePositiveIntArray(
+      source.rewardedKillMilestones,
+      fallback.rewardedKillMilestones,
+    ),
+    clearedStageIds: sanitizePositiveIntArray(source.clearedStageIds, fallback.clearedStageIds),
+  };
+}
+
+function sanitizePositiveIntArray(value, fallback) {
+  if (!Array.isArray(value)) return [...fallback];
+  return [...new Set(
+    value
+      .map((item) => Number(item))
+      .filter((item) => Number.isInteger(item) && item > 0),
+  )];
 }

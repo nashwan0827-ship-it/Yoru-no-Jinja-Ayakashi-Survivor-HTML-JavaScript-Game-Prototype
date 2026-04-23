@@ -271,6 +271,8 @@ export function stepProjectiles(state, hud, audio, dt) {
       stepOfuda(state, p, dt);
     } else if (p.kind === "slash" || p.kind === "reppuzanSlash") {
       p.rot = Math.atan2(p.vy, p.vx);
+    } else if (p.kind === "kodamaOrb") {
+      p.rot = Math.atan2(p.vy, p.vx);
     } else {
       stepHoming(state, p, dt);
     }

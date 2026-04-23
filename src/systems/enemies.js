@@ -1,5 +1,7 @@
 ﻿import { clamp } from "../core/utils.js";
 import { PLAYER_CENTER_Y_OFFSET } from "../state/combatOffsets.js";
+import { savePrefsFromState } from "../core/save.js";
+import { createDefaultAchievementProgress, getPendingKillMilestoneRewards } from "../data/achievements.js";
 
 const XP_GAIN_MULTIPLIER = 1.2;
 const KAGEBOSHI_ANIM_FPS = 7;
@@ -419,13 +421,15 @@ function stepHostileProjectiles(state, audio, dt, playerX, playerY) {
       continue;
     }
 
-    const desired = Math.atan2(playerY - shot.y, playerX - shot.x);
-    const current = Math.atan2(shot.vy, shot.vx);
-    const maxTurn = (shot.turnRate ?? 2.2) * dt;
-    const nextAngle = current + clampAngle(desired - current, -maxTurn, maxTurn);
     const speed = shot.speed ?? (Math.hypot(shot.vx, shot.vy) || 220);
-    shot.vx = Math.cos(nextAngle) * speed;
-    shot.vy = Math.sin(nextAngle) * speed;
+    if ((shot.turnRate ?? 0) > 0) {
+      const desired = Math.atan2(playerY - shot.y, playerX - shot.x);
+      const current = Math.atan2(shot.vy, shot.vx);
+      const maxTurn = (shot.turnRate ?? 0) * dt;
+      const nextAngle = current + clampAngle(desired - current, -maxTurn, maxTurn);
+      shot.vx = Math.cos(nextAngle) * speed;
+      shot.vy = Math.sin(nextAngle) * speed;
+    }
     shot.x += shot.vx * dt;
     shot.y += shot.vy * dt;
 
@@ -768,6 +772,7 @@ export function killEnemy(state, hud, audio, e, fromOfuda = false) {
   dropSoulShards(state, e);
 
   state.kills++;
+  grantKillMilestoneRewards(state, hud);
 }
 
 function dropSoulShards(state, e) {
@@ -787,6 +792,36 @@ function dropSoulShards(state, e) {
       vx: (Math.random() * 2 - 1) * (e.isBoss ? 54 : 22),
       vy: (Math.random() * 2 - 1) * (e.isBoss ? 54 : 22),
     });
+  }
+}
+
+function grantKillMilestoneRewards(state, hud) {
+  const progress = state.achievementProgress ?? createDefaultAchievementProgress();
+  const totalKills = Math.max(0, Math.floor(progress.totalKills ?? 0)) + 1;
+  progress.totalKills = totalKills;
+  state.achievementProgress = progress;
+
+  const rewards = getPendingKillMilestoneRewards(progress, totalKills);
+  for (const reward of rewards) {
+    progress.rewardedKillMilestones = [...new Set([
+      ...(progress.rewardedKillMilestones ?? []),
+      reward.kills,
+    ])];
+    state.soulShards = Math.max(0, Math.floor(state.soulShards ?? 0)) + reward.soulShards;
+    state.runSoulShards = Math.max(0, Math.floor(state.runSoulShards ?? 0)) + reward.soulShards;
+    hud?.flash?.(`累計${reward.kills}体撃破達成 魂片+${reward.soulShards}`);
+  }
+
+  if (rewards.length > 0) {
+    window.dispatchEvent(new CustomEvent("soul-shards-changed"));
+  }
+
+  if (rewards.length > 0 || totalKills % 10 === 0) {
+    savePrefsFromState(state, {
+      soulShards: state.soulShards,
+      achievementProgress: progress,
+    });
+    state._lastSavedAchievementTotalKills = totalKills;
   }
 }
 
