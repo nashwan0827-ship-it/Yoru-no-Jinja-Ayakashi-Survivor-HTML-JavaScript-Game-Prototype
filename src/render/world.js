@@ -29,7 +29,7 @@ export function renderWorld(canvasApi, cam, assets, state) {
   drawBackground(ctx, W, H, cam, assets, state);
   drawMapBoundary(ctx, W, H, cam, state);
   drawStageObjects(ctx, W, H, cam, assets, state);
-  drawDrops(ctx, W, H, cam, state);
+  drawDrops(ctx, W, H, cam, assets, state);
 
   for (const e of state.enemies) {
     drawEnemy(ctx, W, H, cam, assets, state, e);
@@ -70,34 +70,48 @@ function drawFamiliars(ctx, W, H, cam, assets, state) {
       continue;
     }
 
-    ctx.save();
-    ctx.translate(sx, sy + bob);
-    ctx.globalAlpha = 0.9;
-
-    ctx.fillStyle = "rgba(190, 235, 255, 0.16)";
-    ctx.beginPath();
-    ctx.arc(0, 0, 18, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.fillStyle = "rgba(235, 248, 255, 0.96)";
-    ctx.beginPath();
-    ctx.moveTo(0, -12);
-    ctx.lineTo(9, -2);
-    ctx.lineTo(5, 12);
-    ctx.lineTo(-5, 12);
-    ctx.lineTo(-9, -2);
-    ctx.closePath();
-    ctx.fill();
-
-    ctx.strokeStyle = "rgba(75, 160, 210, 0.72)";
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-
-    ctx.fillStyle = "rgba(60, 120, 165, 0.82)";
-    ctx.fillRect(-3, -4, 6, 2);
-    ctx.fillRect(-2, 1, 4, 6);
-    ctx.restore();
+    drawKodamaFamiliar(ctx, sx, sy + bob, state, familiar);
   }
+}
+
+function drawKodamaFamiliar(ctx, sx, sy, state, familiar) {
+  const t = state.timeSurvived ?? 0;
+  const pulse = 1 + Math.sin(t * 6.2 + (familiar.bobSeed ?? 0)) * 0.08;
+
+  ctx.save();
+  ctx.translate(sx, sy);
+  ctx.scale(pulse, pulse);
+  ctx.globalAlpha = 0.92;
+
+  const glow = ctx.createRadialGradient(0, 0, 2, 0, 0, 22);
+  glow.addColorStop(0, "rgba(240, 255, 255, 0.72)");
+  glow.addColorStop(0.45, "rgba(105, 244, 255, 0.24)");
+  glow.addColorStop(1, "rgba(105, 244, 255, 0)");
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.arc(0, 0, 22, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = "rgba(235, 255, 252, 0.96)";
+  ctx.beginPath();
+  ctx.moveTo(0, -13);
+  ctx.bezierCurveTo(10, -8, 11, 5, 3, 14);
+  ctx.quadraticCurveTo(0, 10, -4, 14);
+  ctx.bezierCurveTo(-12, 5, -10, -8, 0, -13);
+  ctx.fill();
+
+  ctx.fillStyle = "rgba(70, 165, 185, 0.74)";
+  ctx.fillRect(-5, -3, 3, 3);
+  ctx.fillRect(3, -3, 3, 3);
+  ctx.fillRect(-2, 4, 4, 2);
+
+  ctx.globalAlpha = 0.5;
+  ctx.fillStyle = "rgba(120, 245, 255, 0.88)";
+  ctx.beginPath();
+  ctx.arc(15, -10, 2.4, 0, Math.PI * 2);
+  ctx.arc(-13, 7, 1.8, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
 }
 
 function drawPriorityTargetMark(ctx, W, H, cam, state) {
@@ -128,8 +142,10 @@ function drawPriorityTargetMark(ctx, W, H, cam, state) {
 }
 
 function drawFamiliarSprite(ctx, assets, state, familiar, sx, sy) {
+  const isShikigami = familiar.id === "familiar_shikigami";
   const isTanuki = familiar.id === "familiar_reiri";
   const isYakyo = familiar.id === "familiar_yakyo";
+  if (!isShikigami && !isTanuki && !isYakyo) return false;
   const img = isYakyo
     ? assets.yakyoOwlFamiliarImg?.()
     : isTanuki
@@ -735,9 +751,13 @@ function drawIwaYokai(ctx, e, sx, sy) {
 }
 
 // 経験値ドロップの描画
-function drawDrops(ctx, W, H, cam, state) {
+function drawDrops(ctx, W, H, cam, assets, state) {
   for (const d of state.drops) {
     const [sx, sy] = toScreen(cam, W, H, d.x, d.y);
+    if (d.kind === "soulShard") {
+      drawSoulShardDrop(ctx, assets, sx, sy, d);
+      continue;
+    }
     ctx.save();
     ctx.globalAlpha = 0.9;
     ctx.fillStyle = "#b7a6ff";
@@ -746,6 +766,25 @@ function drawDrops(ctx, W, H, cam, state) {
     ctx.fill();
     ctx.restore();
   }
+}
+
+function drawSoulShardDrop(ctx, assets, sx, sy, d) {
+  const img = assets.soulShardIconImg?.();
+  const ready = assets.soulShardIconReady?.() && !!img;
+  const size = Math.max(18, (d.r || 7) * 3.6);
+
+  ctx.save();
+  ctx.globalAlpha = 0.95;
+  if (ready) {
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(img, sx - size / 2, sy - size / 2, size, size);
+  } else {
+    ctx.fillStyle = "#69f4ff";
+    ctx.beginPath();
+    ctx.arc(sx, sy, (d.r || 7) + 3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
 }
 
 function drawProjectiles(ctx, W, H, cam, assets, state) {
@@ -1022,6 +1061,37 @@ function drawFx(ctx, W, H, cam, assets, state) {
       const fx = startX + (toX - startX) * flyT + sideX * (1 - travelProgress * 0.45);
       const fy = startY + (toY - startY) * flyT + sideY * (1 - travelProgress * 0.45) - Math.sin(travelProgress * Math.PI) * 18;
 
+      if (f.visual === "spiritOrb") {
+        ctx.save();
+        ctx.globalCompositeOperation = "screen";
+        ctx.globalAlpha = 0.82 * a;
+
+        const radius = 5.5 + pulse * 3;
+        const glow = ctx.createRadialGradient(fx, fy, 1, fx, fy, radius * 3.2);
+        glow.addColorStop(0, "rgba(245, 255, 255, 0.98)");
+        glow.addColorStop(0.36, "rgba(118, 245, 255, 0.62)");
+        glow.addColorStop(1, "rgba(118, 245, 255, 0)");
+        ctx.fillStyle = glow;
+        ctx.beginPath();
+        ctx.arc(fx, fy, radius * 3.2, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.globalAlpha = 0.95 * a;
+        ctx.fillStyle = "rgba(238, 255, 252, 0.96)";
+        ctx.beginPath();
+        ctx.arc(fx, fy, radius, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.globalAlpha = 0.5 * a;
+        ctx.fillStyle = "rgba(120, 245, 255, 0.82)";
+        ctx.beginPath();
+        ctx.arc(fx - 8, fy + 5, 2, 0, Math.PI * 2);
+        ctx.arc(fx + 9, fy - 6, 1.6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+        continue;
+      }
+
       if (ready) {
         const cols = useBlue
           ? assets.SHIKIGAMI_FOXFIRE_BLUE_FX_COLS?.() ?? 4
@@ -1286,6 +1356,7 @@ function drawFx(ctx, W, H, cam, assets, state) {
       const [sx, sy] = toScreen(cam, W, H, f.x, f.y);
       const img = assets.slashFxImg?.();
       const ready = assets.slashFxReady?.() && !!img;
+      const isReppuzan = !!f.reppuzan;
       if (ready) {
         const cols = 4;
         const rows = 2;
@@ -1302,15 +1373,16 @@ function drawFx(ctx, W, H, cam, assets, state) {
         const srcX = col * fw;
         const srcY = row * fh;
         const angle = f.angle ?? 0;
-        const slashH = (f.range ?? 80) * 1.9;
+        const slashH = (f.range ?? 80) * (isReppuzan ? 2.15 : 1.9);
         const scale = slashH / fh;
         const dw = fw * scale;
         const dh = fh * scale;
 
         ctx.save();
+        ctx.globalCompositeOperation = isReppuzan ? "screen" : "source-over";
         ctx.translate(sx, sy);
         ctx.rotate(angle + Math.PI * 0.15);
-        ctx.globalAlpha = 0.95 * a;
+        ctx.globalAlpha = (isReppuzan ? 0.88 : 0.95) * a;
         ctx.drawImage(img, srcX, srcY, fw, fh, -dw * 0.18, -dh * 0.52, dw, dh);
         ctx.restore();
       } else {
@@ -1333,8 +1405,8 @@ function drawFx(ctx, W, H, cam, assets, state) {
           outerR,
         );
         grad.addColorStop(0, "rgba(255,245,220,0.05)");
-        grad.addColorStop(0.55, "rgba(255,210,130,0.22)");
-        grad.addColorStop(1, "rgba(255,120,60,0.38)");
+        grad.addColorStop(0.55, isReppuzan ? "rgba(160,235,255,0.24)" : "rgba(255,210,130,0.22)");
+        grad.addColorStop(1, isReppuzan ? "rgba(80,210,255,0.42)" : "rgba(255,120,60,0.38)");
         ctx.fillStyle = grad;
         ctx.beginPath();
         ctx.arc(sx, sy, outerR * (0.94 + (1 - a) * 0.08), start, end);
@@ -1343,8 +1415,8 @@ function drawFx(ctx, W, H, cam, assets, state) {
         ctx.fill();
 
         ctx.globalAlpha = 0.86 * a;
-        ctx.strokeStyle = "rgba(255,236,185,0.95)";
-        ctx.lineWidth = 3;
+        ctx.strokeStyle = isReppuzan ? "rgba(190,245,255,0.96)" : "rgba(255,236,185,0.95)";
+        ctx.lineWidth = isReppuzan ? 4 : 3;
         ctx.beginPath();
         ctx.arc(sx, sy, outerR * (0.94 + (1 - a) * 0.08), start, end);
         ctx.stroke();

@@ -139,7 +139,7 @@ function onBossDefeated(state, hud, audio, levelupPanel) {
     advanceWave(state, hud, audio);
   };
 
-  if (levelupPanel?.showBossRewardSlot) {
+  if (state.wave < state.waveMax && levelupPanel?.showBossRewardSlot) {
     levelupPanel.showBossRewardSlot(finish);
     return;
   }
@@ -185,7 +185,7 @@ function spawnBoss(state, hud, audio) {
   const d = 700;
   const spawnPos = findSpawnAroundPlayer(state, p.x, p.y, d, 90);
 
-  const boss = getBossConfig(state.stage, state.wave);
+  const boss = getBossConfig(state.stage, state.wave, state.selectedDifficultyId);
   const hp = boss.hp;
   const spd = boss.spd;
   const dmg = boss.dmg;

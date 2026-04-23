@@ -1,4 +1,4 @@
-import { getFamiliar } from "../data/familiars.js";
+import { getFamiliar, getFamiliarMasteryBonus } from "../data/familiars.js";
 import { killEnemy } from "./enemies.js";
 import { recordEnemyDamage } from "./damageStats.js";
 import { getPlayerDamageMultiplier } from "./player.js";
@@ -10,7 +10,8 @@ import {
   updatePriorityTarget,
 } from "./priorityTarget.js";
 
-const DEFAULT_FAMILIAR_ID = "familiar_shikigami";
+const DEFAULT_FAMILIAR_ID = "familiar_kodama";
+const KODAMA_FAMILIAR_ID = "familiar_kodama";
 const SHIKIGAMI_FAMILIAR_ID = "familiar_shikigami";
 const REIRI_FAMILIAR_ID = "familiar_reiri";
 const YAKYO_FAMILIAR_ID = "familiar_yakyo";
@@ -94,6 +95,7 @@ function hasPriorityTargetSupportFamiliar(state) {
 
 function createRuntimeFamiliar(state, def, index) {
   const p = state.player;
+  const mastery = getFamiliarMasteryBonus(state.familiarProgress, def.id);
   const angle = (Math.PI * 2 * (index + 0.2)) / Math.max(1, def.maxCount ?? 1);
   const radius = (def.followRadius ?? 150) * 0.58;
   const x = p.x + Math.cos(angle) * radius;
@@ -110,10 +112,10 @@ function createRuntimeFamiliar(state, def, index) {
     slotIndex: index,
     orbitAngle: angle,
     targetScanTimer: 0,
-    pickupRadius: def.pickupRadius ?? 42,
-    magnetRadius: def.magnetRadius ?? 115,
+    pickupRadius: (def.pickupRadius ?? 42) + mastery.pickupBonus,
+    magnetRadius: (def.magnetRadius ?? 115) + mastery.magnetBonus,
     bobSeed: Math.random() * Math.PI * 2,
-    speedMul: rand(def.speedMinMul ?? 0.8, def.speedMaxMul ?? 1.2),
+    speedMul: rand(def.speedMinMul ?? 0.8, def.speedMaxMul ?? 1.2) * mastery.moveMul,
   };
 }
 
@@ -400,6 +402,7 @@ function updateFamiliarAttack(state, hud, audio, familiar, def, dt) {
     return;
   }
 
+  const isKodama = def.id === KODAMA_FAMILIAR_ID;
   const damage = applyPriorityTargetDamageBonus(state, target, getFamiliarDamage(state, def));
   recordEnemyDamage(state, familiar.id, target, damage);
   target.hp -= damage;
@@ -413,11 +416,12 @@ function updateFamiliarAttack(state, hud, audio, familiar, def, dt) {
     t: 0,
     dur: 1.45,
     sourceId: familiar.id,
-    travelEnd: 0.32,
-    hazardStart: 0.32,
-    hazardRadius: 34,
-    hazardDamage: getFamiliarHazardDamage(state, damage),
+    travelEnd: isKodama ? 0.52 : 0.32,
+    hazardStart: isKodama ? 999 : 0.32,
+    hazardRadius: isKodama ? 0 : 34,
+    hazardDamage: isKodama ? 0 : getFamiliarHazardDamage(state, damage),
     hazardHitSet: new WeakSet(),
+    visual: isKodama ? "spiritOrb" : "familiarStrike",
   };
   strikeFx.hazardHitSet.add(target);
   state.fx.push(strikeFx);
@@ -450,7 +454,7 @@ function updateFamiliarAttack(state, hud, audio, familiar, def, dt) {
   });
 
   if (!target.isBoss) {
-    target.knock = Math.min(80, (target.knock || 0) + 28);
+    target.knock = Math.min(80, (target.knock || 0) + (isKodama ? 8 : 28));
   }
 
   if (target.hp <= 0) {
@@ -953,18 +957,22 @@ function getFamiliarMaxCount(state, def, progress) {
 function getFamiliarDamage(state, def) {
   const boostLevel = getFamiliarBoostLevel(state);
   const boostMul = 1 + boostLevel * 0.25;
-  return Math.round((def.baseDamage ?? 18) * getPlayerDamageMultiplier(state) * boostMul);
+  const mastery = getFamiliarMasteryBonus(state.familiarProgress, def.id);
+  const permanentMul = state.player?.permanentFamiliarDamageMul ?? 1;
+  return Math.round((def.baseDamage ?? 18) * getPlayerDamageMultiplier(state) * boostMul * mastery.damageMul * permanentMul);
 }
 
 function getFamiliarAttackInterval(state, def) {
   const boostLevel = getFamiliarBoostLevel(state);
   const intervalMul = Math.max(0.55, 1 - boostLevel * 0.06);
+  const mastery = getFamiliarMasteryBonus(state.familiarProgress, def.id);
   const evolutionMul = def.id === YAKYO_FAMILIAR_ID
     ? getYakyoEvolutionConfig(getFamiliarEvolutionLevel(state, { id: def.id }, def)).attackIntervalMul ?? 1
     : def.id === REIRI_FAMILIAR_ID
       ? getReiriEvolutionConfig(getFamiliarEvolutionLevel(state, { id: def.id }, def)).attackIntervalMul ?? 1
     : 1;
-  return (def.attackInterval ?? 0.8) * intervalMul * evolutionMul;
+  const permanentSpeedMul = state.player?.permanentFamiliarAttackSpeedMul ?? 1;
+  return (def.attackInterval ?? 0.8) * intervalMul * evolutionMul * mastery.attackIntervalMul / permanentSpeedMul;
 }
 
 function getFamiliarHazardDamage(state, directDamage) {
@@ -1183,10 +1191,11 @@ function findFamiliarTarget(state, familiar, def) {
 }
 
 function findFamiliarTargets(state, familiar, def, maxTargets) {
+  const mastery = getFamiliarMasteryBonus(state.familiarProgress, def.id);
   const attackRangeMul = def.id === YAKYO_FAMILIAR_ID
     ? getYakyoEvolutionConfig(getFamiliarEvolutionLevel(state, familiar, def)).attackRangeMul
     : 1;
-  const attackRangeSq = ((def.attackRange ?? 210) * (attackRangeMul ?? 1)) ** 2;
+  const attackRangeSq = ((def.attackRange ?? 210) * (attackRangeMul ?? 1) * mastery.rangeMul) ** 2;
   const anchorX = state.player.x;
   const anchorY = state.player.y + PLAYER_CENTER_Y_OFFSET;
   const anchorRangeSq = (def.playerAnchorRange ?? 330) ** 2;

@@ -1,5 +1,6 @@
 ﻿import { HEROES } from "../data/heroes.js";
 import { initWeapons } from "../data/upgrades.js";
+import { getPermanentUpgradeBonuses } from "../data/permanentUpgrades.js";
 import { getEnemyTemplate, getStage } from "../data/stages.js";
 import { clamp, rand } from "../core/utils.js";
 import { createDebugState } from "../debug/config.js";
@@ -21,11 +22,18 @@ export function createGameState() {
 
     selectedHeroId: 1,
     selectedStageId: 1,
+    selectedDifficultyId: "easy",
     unlockedStageMax: 1,
+    unlockedDifficulties: { 1: ["easy"], 2: ["easy"], 3: ["easy"] },
+    soulShards: 0,
+    runSoulShards: 0,
+    unlockedHeroIds: [1],
+    permanentUpgrades: {},
     familiarProgress: {
       unlockedFamiliars: getDefaultUnlockedFamiliarIds(),
       equippedFamiliarId: getDefaultEquippedFamiliarId(),
       familiarLevel: {},
+      familiarMastery: {},
       familiarCountBonus: 0,
     },
 
@@ -110,7 +118,7 @@ export function createGameState() {
     _spawnTimer: 0,
 
     spawn: {
-      enemyTemplate: (wave) => getEnemyTemplate(state.stage, wave),
+      enemyTemplate: (wave) => getEnemyTemplate(state.stage, wave, state.selectedDifficultyId),
       spawnEnemyRing: (count) => spawnEnemyRing(state, count),
       hasBossAlive: () => state.enemies.some((e) => e.isBoss),
     },
@@ -148,6 +156,22 @@ export function applyHeroStats(state, heroId) {
   // 初期武器を設定して戦闘状態を初期化
   initWeapons(p, hero.startingWeaponId);
   resetBattleSceneState(state);
+  applyPermanentUpgrades(state);
+}
+
+function applyPermanentUpgrades(state) {
+  const p = state.player;
+  const bonuses = getPermanentUpgradeBonuses(state.permanentUpgrades);
+
+  const hpMax = Math.round(p.hpMax * bonuses.hpMul);
+  p.hpMax = hpMax;
+  p.hp = hpMax;
+  p.speed = Math.round(p.speed * bonuses.speedMul);
+  p.magnet = Math.round(p.magnet * bonuses.magnetMul);
+  p.atkMul = (p.atkMul ?? 1) * bonuses.damageMul;
+  p.aspdMul = (p.aspdMul ?? 1) * bonuses.attackSpeedMul;
+  p.permanentFamiliarDamageMul = bonuses.familiarDamageMul;
+  p.permanentFamiliarAttackSpeedMul = bonuses.familiarAttackSpeedMul;
 }
 
 export function resetBattleSceneState(
@@ -172,6 +196,7 @@ export function resetBattleSceneState(
     state.timeSurvived = 0;
     state.kills = 0;
     state.score = 0;
+    state.runSoulShards = 0;
     p.items = ["familiarBoost"];
     p.itemLimit = 4;
     p.statLevels = { atk: 0, aspd: 0, area: 0, hpMax: 0, magnet: 0, familiarBoost: 1 };
@@ -259,7 +284,7 @@ function spawnEnemyRing(state, count) {
   let fastPackSpawned = false;
 
   for (let i = 0; i < count; i++) {
-    const t = getEnemyTemplate(state.stage, state.wave);
+    const t = getEnemyTemplate(state.stage, state.wave, state.selectedDifficultyId);
 
     if (t.type === 4) {
       if (!fastPackSpawned) {

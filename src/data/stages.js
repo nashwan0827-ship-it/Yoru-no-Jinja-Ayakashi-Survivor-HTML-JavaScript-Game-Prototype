@@ -83,6 +83,26 @@
   10: bossOnlyProfile(),
 };
 
+export const STAGE_DIFFICULTIES = [
+  { id: "easy", name: "Easy", statMul: 1 },
+  { id: "normal", name: "Normal", statMul: 2 },
+  { id: "hard", name: "Hard", statMul: 3 },
+];
+
+export function getStageDifficulty(id) {
+  return STAGE_DIFFICULTIES.find((difficulty) => difficulty.id === id) ?? STAGE_DIFFICULTIES[0];
+}
+
+export function getNextStageDifficultyId(id) {
+  const currentIndex = STAGE_DIFFICULTIES.findIndex((difficulty) => difficulty.id === id);
+  if (currentIndex < 0) return STAGE_DIFFICULTIES[1]?.id ?? null;
+  return STAGE_DIFFICULTIES[currentIndex + 1]?.id ?? null;
+}
+
+function getStageDifficultyStatMultiplier(stageId, difficultyId) {
+  return getStageDifficulty(difficultyId).statMul;
+}
+
 export const STAGES = [
   {
     id: 1,
@@ -133,7 +153,7 @@ export const STAGES = [
     name: "\u7b2c\u4e8c\u5e55",
     introText: "\u7b2c\u4e8c\u5e55 \u958b\u59cb",
     waveMax: 10,
-    waveSeconds: 42,
+    waveSeconds: 45,
     entrySpawnCount: 16,
     bossWaves: [5, 10],
     enemy: {
@@ -185,7 +205,7 @@ export const STAGES = [
     name: "\u7b2c\u4e09\u5e55",
     introText: "\u7b2c\u4e09\u5e55 \u958b\u59cb",
     waveMax: 10,
-    waveSeconds: 40,
+    waveSeconds: 45,
     entrySpawnCount: 18,
     bossWaves: [5, 10],
     enemy: {
@@ -289,21 +309,21 @@ export const KAGEBOSHI_RED_ENEMY_TEMPLATE = {
   color: "#b84a5a",
   preferredRange: 330,
   attackRange: 500,
-  projectileSpeed: 270,
+  projectileSpeed: 340,
   projectileRadius: 11,
   projectileDamage: 18,
   projectileColor: "#ff4f7c",
   attackInterval: 0.98,
 };
 
-export function getKageboshiEnemyTemplate(stageId) {
+export function getKageboshiEnemyTemplate(stageId, difficultyId = "easy") {
   const stage = getStage(stageId);
-  return scaleEnemy(stage.enemy, KAGEBOSHI_ENEMY_TEMPLATE);
+  return scaleEnemy(stage.enemy, KAGEBOSHI_ENEMY_TEMPLATE, getStageDifficultyStatMultiplier(stageId, difficultyId));
 }
 
-export function getKageboshiRedEnemyTemplate(stageId) {
+export function getKageboshiRedEnemyTemplate(stageId, difficultyId = "easy") {
   const stage = getStage(stageId);
-  return scaleEnemy(stage.enemy, KAGEBOSHI_RED_ENEMY_TEMPLATE);
+  return scaleEnemy(stage.enemy, KAGEBOSHI_RED_ENEMY_TEMPLATE, getStageDifficultyStatMultiplier(stageId, difficultyId));
 }
 
 export function getWaveProfile(stageId, wave) {
@@ -325,9 +345,10 @@ export function getWaveProfile(stageId, wave) {
   };
 }
 
-export function getEnemyTemplate(stageId, wave = 1) {
+export function getEnemyTemplate(stageId, wave = 1, difficultyId = "easy") {
   const stage = getStage(stageId);
   const enemy = stage.enemy;
+  const difficultyMul = getStageDifficultyStatMultiplier(stageId, difficultyId);
   const pool = [];
 
   pool.push(scaleEnemy(enemy, {
@@ -338,7 +359,7 @@ export function getEnemyTemplate(stageId, wave = 1) {
     spd: wave <= 2 ? 96 : 102,
     dmg: 18,
     color: "#c86cff",
-  }));
+  }, difficultyMul));
   pool.push(scaleEnemy(enemy, {
     w: wave <= 2 ? 16 : wave <= 4 ? 24 : 28,
     type: 1,
@@ -347,7 +368,7 @@ export function getEnemyTemplate(stageId, wave = 1) {
     spd: wave <= 2 ? 52 : 58,
     dmg: 14,
     color: "#ffb14a",
-  }));
+  }, difficultyMul));
 
   if (wave >= enemy.earlyFastWave) {
     pool.push(scaleEnemy(enemy, {
@@ -358,7 +379,7 @@ export function getEnemyTemplate(stageId, wave = 1) {
       spd: wave <= 4 ? 178 : 188,
       dmg: wave <= 4 ? 12 : 14,
       color: "#88eeff",
-    }));
+    }, difficultyMul));
   }
 
   if (wave >= enemy.earlyTankWave) {
@@ -371,7 +392,7 @@ export function getEnemyTemplate(stageId, wave = 1) {
       dmg: wave <= 8 ? 20 : 26,
       color: "#aaa080",
       noKnock: true,
-    }));
+    }, difficultyMul));
   }
 
   if (wave >= enemy.earlyBoarWave) {
@@ -383,7 +404,7 @@ export function getEnemyTemplate(stageId, wave = 1) {
       spd: wave <= 6 ? 60 : 66,
       dmg: wave <= 6 ? 20 : 26,
       color: "#8b5740",
-    }));
+    }, difficultyMul));
   }
 
   const kageboshiStartWave = enemy.earlyKageboshiWave ?? 999;
@@ -395,7 +416,7 @@ export function getEnemyTemplate(stageId, wave = 1) {
     pool.push(scaleEnemy(enemy, {
       ...KAGEBOSHI_ENEMY_TEMPLATE,
       w: Math.max(1, kageboshiWeight),
-    }));
+    }, difficultyMul));
   }
 
   const kageboshiRedStartWave = enemy.earlyKageboshiRedWave ?? 999;
@@ -407,7 +428,7 @@ export function getEnemyTemplate(stageId, wave = 1) {
     pool.push(scaleEnemy(enemy, {
       ...KAGEBOSHI_RED_ENEMY_TEMPLATE,
       w: Math.max(1, kageboshiRedWeight),
-    }));
+    }, difficultyMul));
   }
 
   const total = pool.reduce((s, e) => s + e.w, 0);
@@ -419,18 +440,25 @@ export function getEnemyTemplate(stageId, wave = 1) {
   return pool[0];
 }
 
-export function getBossConfig(stageId, wave) {
+export function getBossConfig(stageId, wave, difficultyId = "easy") {
   const stage = getStage(stageId);
   const lastBossWave = stage.bossWaves[stage.bossWaves.length - 1];
-  return stage.bosses[wave] || stage.bosses[lastBossWave];
+  const boss = stage.bosses[wave] || stage.bosses[lastBossWave];
+  const difficultyMul = getStageDifficultyStatMultiplier(stageId, difficultyId);
+  return {
+    ...boss,
+    hp: Math.round(boss.hp * difficultyMul),
+    spd: Math.round(boss.spd * difficultyMul),
+    dmg: Math.round(boss.dmg * difficultyMul),
+  };
 }
 
-function scaleEnemy(enemy, template) {
+function scaleEnemy(enemy, template, difficultyMul = 1) {
   return {
     ...template,
-    hp: Math.round(template.hp * enemy.hpMul),
-    spd: Math.round(template.spd * enemy.speedMul),
-    dmg: Math.round(template.dmg * enemy.dmgMul),
+    hp: Math.round(template.hp * enemy.hpMul * difficultyMul),
+    spd: Math.round(template.spd * enemy.speedMul * difficultyMul),
+    dmg: Math.round(template.dmg * enemy.dmgMul * difficultyMul),
   };
 }
 

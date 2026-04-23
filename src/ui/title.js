@@ -1,18 +1,37 @@
-import { HEROES } from "../data/heroes.js";
+﻿import { HEROES } from "../data/heroes.js";
 import { PATHS } from "../../paths.js";
-import { STAGES } from "../data/stages.js";
-import { loadPrefs, savePrefs } from "../core/save.js";
-import { FAMILIARS } from "../data/familiars.js";
+import { STAGE_DIFFICULTIES, STAGES, getStageDifficulty } from "../data/stages.js";
+import { loadPrefs, resetPrefs, savePrefs } from "../core/save.js";
+import {
+  PERMANENT_UPGRADE_MAX_LEVEL,
+  PERMANENT_UPGRADES,
+  getPermanentUpgradeCost,
+  getPermanentUpgradeLevel,
+} from "../data/permanentUpgrades.js";
+import {
+  FAMILIAR_MASTERY_MAX_LEVEL,
+  FAMILIARS,
+  getFamiliarMasteryBonus,
+} from "../data/familiars.js";
 
 export function initTitleUI(refs, state, assets, audio, onSelectHero, onStart) {
   const prefs = loadPrefs();
   const configOverlay = document.getElementById("configOverlay");
   const openConfigBtn = document.getElementById("openConfigBtn");
   const closeConfigBtn = document.getElementById("closeConfigBtn");
+  const resetSaveBtn = document.getElementById("resetSaveBtn");
+  const resetSaveWarning = document.getElementById("resetSaveWarning");
   const familiarOverlay = document.getElementById("familiarOverlay");
   const openFamiliarBtn = document.getElementById("openFamiliarBtn");
   const closeFamiliarBtn = document.getElementById("closeFamiliarBtn");
   const familiarChoices = document.getElementById("familiarChoices");
+  const permanentOverlay = document.getElementById("permanentOverlay");
+  const openPermanentBtn = document.getElementById("openPermanentBtn");
+  const closePermanentBtn = document.getElementById("closePermanentBtn");
+  const permanentChoices = document.getElementById("permanentChoices");
+  const titleSoulShards = document.getElementById("titleSoulShards");
+  const familiarSoulShards = document.getElementById("familiarSoulShards");
+  const permanentSoulShards = document.getElementById("permanentSoulShards");
   const b1 = refs.heroBtn1;
   const b2 = refs.heroBtn2;
   const b3 = refs.heroBtn3;
@@ -20,17 +39,105 @@ export function initTitleUI(refs, state, assets, audio, onSelectHero, onStart) {
   const b5 = refs.heroBtn5;
   const s1 = refs.stageBtn1;
   const s2 = refs.stageBtn2;
+  const s3 = refs.stageBtn3;
   const intro = refs.titleIntro;
   const introStartBtn = refs.introStartBtn;
   const startBtn = refs.startBtn;
   const heroButtons = [b1, b2, b3, b4, b5].filter(Boolean);
-  const stageButtons = [s1, s2].filter(Boolean);
+  const stageButtons = [s1, s2, s3].filter(Boolean);
+  const difficultyButtons = Array.from(document.querySelectorAll(".difficultyBtn"));
   let introActive = !!intro;
+  let resetConfirmTimer = 0;
 
   hydrateHeroCards(heroButtons);
+  refreshSoulShardDisplays();
+
+  function refreshSoulShardDisplays() {
+    const latestPrefs = loadPrefs();
+    const amount = Math.max(0, Math.floor(state.soulShards ?? latestPrefs.soulShards ?? 0));
+    state.soulShards = amount;
+    const text = `\u9b42\u7247 ${amount.toLocaleString()}`;
+    if (titleSoulShards) titleSoulShards.textContent = amount.toLocaleString();
+    if (familiarSoulShards) familiarSoulShards.textContent = text;
+    if (permanentSoulShards) permanentSoulShards.textContent = text;
+  }
+
+  function getUnlockedHeroSet() {
+    const latestPrefs = loadPrefs();
+    const ids = Array.isArray(state.unlockedHeroIds)
+      ? state.unlockedHeroIds
+      : latestPrefs.unlockedHeroIds ?? [1];
+    return new Set([1, ...ids.map((id) => Number(id)).filter((id) => Number.isInteger(id) && id > 0)]);
+  }
+
+  function isHeroUnlocked(id) {
+    return getUnlockedHeroSet().has(id);
+  }
+
+  function getHeroUnlockCost(id) {
+    const hero = HEROES.find((entry) => entry.id === id);
+    return Math.max(0, Math.floor(hero?.unlockCost ?? 0));
+  }
+
+  function refreshHeroLocks() {
+    const unlockedSet = getUnlockedHeroSet();
+    const soulShards = Math.max(0, Math.floor(state.soulShards ?? loadPrefs().soulShards ?? 0));
+    heroButtons.forEach((btn, index) => {
+      const hero = HEROES[index];
+      if (!btn || !hero) return;
+
+      const unlocked = unlockedSet.has(hero.id);
+      const cost = getHeroUnlockCost(hero.id);
+      const affordable = soulShards >= cost;
+      btn.classList.toggle("is-locked", !unlocked);
+      btn.classList.toggle("is-affordable", !unlocked && affordable);
+      btn.setAttribute("aria-disabled", unlocked ? "false" : "true");
+
+      let costEl = btn.querySelector(".heroUnlockCost");
+      if (!costEl) {
+        costEl = document.createElement("div");
+        costEl.className = "heroUnlockCost";
+        btn.querySelector(".hero-info")?.appendChild(costEl);
+      }
+      costEl.textContent = !unlocked
+        ? affordable
+          ? `${cost.toLocaleString()} \u3067\u89e3\u653e`
+          : `${cost.toLocaleString()} \u5fc5\u8981`
+        : "";
+    });
+  }
+
+  function unlockHero(id) {
+    const cost = getHeroUnlockCost(id);
+    if (cost <= 0 || isHeroUnlocked(id)) return true;
+
+    refreshSoulShardDisplays();
+    const current = Math.max(0, Math.floor(state.soulShards ?? 0));
+    if (current < cost) {
+      const btn = heroButtons[id - 1];
+      const costEl = btn?.querySelector(".heroUnlockCost");
+      if (costEl) {
+        costEl.textContent = `\u9b42\u7247\u304c\u3042\u3068${(cost - current).toLocaleString()}\u5fc5\u8981`;
+      }
+      return false;
+    }
+
+    const unlockedHeroIds = [...getUnlockedHeroSet(), id].sort((a, b) => a - b);
+    state.soulShards = current - cost;
+    state.unlockedHeroIds = unlockedHeroIds;
+    savePrefs({
+      soulShards: state.soulShards,
+      unlockedHeroIds,
+      selectedHeroId: id,
+    });
+    window.dispatchEvent(new CustomEvent("soul-shards-changed"));
+    refreshHeroLocks();
+    return true;
+  }
 
   function openConfig() {
     if (!configOverlay) return;
+    dismissIntro();
     configOverlay.classList.add("is-open");
     configOverlay.setAttribute("aria-hidden", "false");
   }
@@ -39,10 +146,38 @@ export function initTitleUI(refs, state, assets, audio, onSelectHero, onStart) {
     if (!configOverlay) return;
     configOverlay.classList.remove("is-open");
     configOverlay.setAttribute("aria-hidden", "true");
+    resetResetSaveButton();
+  }
+
+  function resetResetSaveButton() {
+    window.clearTimeout(resetConfirmTimer);
+    resetConfirmTimer = 0;
+    if (!resetSaveBtn) return;
+    resetSaveBtn.classList.remove("is-confirming");
+    resetSaveBtn.textContent = "\u30c7\u30fc\u30bf\u524a\u9664";
+    resetSaveWarning?.classList.remove("is-visible");
+  }
+
+  function handleResetSaveClick() {
+    if (!resetSaveBtn) return;
+
+    if (!resetSaveBtn.classList.contains("is-confirming")) {
+      resetSaveBtn.classList.add("is-confirming");
+      resetSaveBtn.textContent = "\u3082\u3046\u4e00\u5ea6\u62bc\u3059\u3068\u524a\u9664";
+      resetSaveWarning?.classList.add("is-visible");
+      window.clearTimeout(resetConfirmTimer);
+      resetConfirmTimer = window.setTimeout(() => resetResetSaveButton(), 2600);
+      return;
+    }
+
+    resetPrefs();
+    window.location.reload();
   }
 
   function openFamiliarPanel() {
-    if (!familiarOverlay || introActive) return;
+    if (!familiarOverlay) return;
+    dismissIntro();
+    refreshSoulShardDisplays();
     renderFamiliarChoices();
     familiarOverlay.classList.add("is-open");
     familiarOverlay.setAttribute("aria-hidden", "false");
@@ -54,6 +189,92 @@ export function initTitleUI(refs, state, assets, audio, onSelectHero, onStart) {
     familiarOverlay.setAttribute("aria-hidden", "true");
   }
 
+  function openPermanentPanel() {
+    if (!permanentOverlay) return;
+    dismissIntro();
+    refreshSoulShardDisplays();
+    renderPermanentChoices();
+    permanentOverlay.classList.add("is-open");
+    permanentOverlay.setAttribute("aria-hidden", "false");
+  }
+
+  function closePermanentPanel() {
+    if (!permanentOverlay) return;
+    permanentOverlay.classList.remove("is-open");
+    permanentOverlay.setAttribute("aria-hidden", "true");
+  }
+
+  function getPermanentProgress() {
+    const latestPrefs = loadPrefs();
+    return state.permanentUpgrades ?? latestPrefs.permanentUpgrades ?? {};
+  }
+
+  function renderPermanentChoices() {
+    if (!permanentChoices) return;
+
+    const progress = getPermanentProgress();
+    const soulShards = Math.max(0, Math.floor(state.soulShards ?? loadPrefs().soulShards ?? 0));
+    permanentChoices.innerHTML = PERMANENT_UPGRADES.map((upgrade) => {
+      const level = getPermanentUpgradeLevel(progress, upgrade.key);
+      const cost = getPermanentUpgradeCost(progress, upgrade.key);
+      const isMax = level >= PERMANENT_UPGRADE_MAX_LEVEL;
+      const affordable = cost != null && soulShards >= cost;
+      const buttonLabel = isMax
+        ? "MAX"
+        : affordable
+          ? `${cost.toLocaleString()}\u3067\u5f37\u5316`
+          : `${cost.toLocaleString()}\u5fc5\u8981`;
+      const disabled = isMax || !affordable ? " disabled" : "";
+      const nextLevel = Math.min(PERMANENT_UPGRADE_MAX_LEVEL, level + 1);
+      const effectText = isMax
+        ? `Lv${level} / ${upgrade.format(level)}`
+        : `Lv${level} \u2192 Lv${nextLevel} / ${upgrade.format(nextLevel)}`;
+      return [
+        `<div class="permanentCard${isMax ? " is-max" : ""}" data-upgrade-key="${escapeHtml(upgrade.key)}">`,
+        `<div class="permanentInfo">`,
+        `<b>${escapeHtml(upgrade.name)}</b>`,
+        `<small>${escapeHtml(upgrade.desc)}</small>`,
+        `<small>${escapeHtml(effectText)}</small>`,
+        `</div>`,
+        `<button class="permanentUpgradeBtn" type="button"${disabled}>${buttonLabel}</button>`,
+        `</div>`,
+      ].join("");
+    }).join("");
+
+    permanentChoices.querySelectorAll(".permanentCard").forEach((card) => {
+      const button = card.querySelector(".permanentUpgradeBtn");
+      button?.addEventListener("click", () => {
+        const key = card.getAttribute("data-upgrade-key");
+        if (!key) return;
+        buyPermanentUpgrade(key);
+      });
+    });
+  }
+
+  function buyPermanentUpgrade(key) {
+    const progress = getPermanentProgress();
+    const cost = getPermanentUpgradeCost(progress, key);
+    if (cost == null) return false;
+
+    refreshSoulShardDisplays();
+    const current = Math.max(0, Math.floor(state.soulShards ?? 0));
+    if (current < cost) return false;
+
+    const nextProgress = {
+      ...progress,
+      [key]: getPermanentUpgradeLevel(progress, key) + 1,
+    };
+    state.soulShards = current - cost;
+    state.permanentUpgrades = nextProgress;
+    savePrefs({
+      soulShards: state.soulShards,
+      permanentUpgrades: nextProgress,
+    });
+    window.dispatchEvent(new CustomEvent("soul-shards-changed"));
+    renderPermanentChoices();
+    return true;
+  }
+
   function getFamiliarProgress() {
     const progress = state.familiarProgress ?? {};
     const unlocked = Array.isArray(progress.unlockedFamiliars)
@@ -63,6 +284,7 @@ export function initTitleUI(refs, state, assets, audio, onSelectHero, onStart) {
       unlockedFamiliars: unlocked,
       equippedFamiliarId: progress.equippedFamiliarId ?? prefs.equippedFamiliarId ?? null,
       familiarLevel: progress.familiarLevel ?? prefs.familiarLevel ?? {},
+      familiarMastery: progress.familiarMastery ?? prefs.familiarMastery ?? {},
       familiarCountBonus: progress.familiarCountBonus ?? prefs.familiarCountBonus ?? 0,
     };
   }
@@ -72,24 +294,38 @@ export function initTitleUI(refs, state, assets, audio, onSelectHero, onStart) {
 
     const progress = getFamiliarProgress();
     const unlockedSet = new Set(progress.unlockedFamiliars);
+    const soulShards = Math.max(0, Math.floor(state.soulShards ?? loadPrefs().soulShards ?? 0));
     familiarChoices.innerHTML = FAMILIARS.map((familiar) => {
       const unlocked = unlockedSet.has(familiar.id);
       const equipped = progress.equippedFamiliarId === familiar.id;
+      const unlockCost = getFamiliarUnlockCost(familiar);
+      const affordable = soulShards >= unlockCost;
       const cardClass = [
         "familiarCard",
         equipped ? "is-equipped" : "",
         unlocked ? "" : "is-locked",
+        !unlocked && affordable ? "is-affordable" : "",
       ]
         .filter(Boolean)
         .join(" ");
-      const buttonLabel = !unlocked ? "未解放" : equipped ? "装備中" : "装備";
-      const disabled = !unlocked || equipped ? " disabled" : "";
+      const buttonLabel = !unlocked
+        ? affordable
+          ? `${unlockCost.toLocaleString()}\u3067\u89e3\u653e`
+          : `${unlockCost.toLocaleString()}\u5fc5\u8981`
+        : equipped ? "\u88c5\u5099\u4e2d" : "\u88c5\u5099";
+      const disabled = equipped || (!unlocked && !affordable) ? " disabled" : "";
+      const mastery = getFamiliarMasteryBonus(progress, familiar.id);
+      const masteryText = mastery.level >= FAMILIAR_MASTERY_MAX_LEVEL
+        ? `\u719f\u7df4Lv${mastery.level} MAX`
+        : `\u719f\u7df4Lv${mastery.level} ${mastery.xp}/${mastery.xpToNext}`;
+      const bonusText = `\u706b\u529b+${formatPercentBonus(mastery.damageMul)} \u5c04\u7a0b+${formatPercentBonus(mastery.rangeMul)}`;
       return [
         `<div class="${cardClass}" data-familiar-id="${escapeHtml(familiar.id)}">`,
-        `<div class="familiarPortrait">${escapeHtml(getFamiliarBadge(familiar))}</div>`,
+        renderFamiliarPortrait(familiar),
         `<div class="familiarInfo">`,
         `<b>${escapeHtml(familiar.name)}</b>`,
-        `<small>${escapeHtml(familiar.category ?? "仲間")} / ${escapeHtml(getFamiliarSummary(familiar))}</small>`,
+        `<small>${escapeHtml(familiar.category ?? "\u5f0f\u795e")} / ${escapeHtml(getFamiliarSummary(familiar))}</small>`,
+        `<small>${escapeHtml(masteryText)} / ${escapeHtml(bonusText)}</small>`,
         `</div>`,
         `<button class="familiarEquipBtn" type="button"${disabled}>${buttonLabel}</button>`,
         `</div>`,
@@ -100,7 +336,11 @@ export function initTitleUI(refs, state, assets, audio, onSelectHero, onStart) {
       const button = card.querySelector(".familiarEquipBtn");
       button?.addEventListener("click", () => {
         const familiarId = card.getAttribute("data-familiar-id");
-        if (!familiarId || !unlockedSet.has(familiarId)) return;
+        if (!familiarId) return;
+        if (!unlockedSet.has(familiarId)) {
+          if (!unlockFamiliar(familiarId, progress)) return;
+          return;
+        }
         state.familiarProgress = {
           ...progress,
           equippedFamiliarId: familiarId,
@@ -109,6 +349,35 @@ export function initTitleUI(refs, state, assets, audio, onSelectHero, onStart) {
         renderFamiliarChoices();
       });
     });
+  }
+
+  function getFamiliarUnlockCost(familiar) {
+    return Math.max(0, Math.floor(familiar?.unlockCost ?? 0));
+  }
+
+  function unlockFamiliar(familiarId, progress) {
+    const familiar = FAMILIARS.find((entry) => entry.id === familiarId);
+    if (!familiar) return false;
+
+    refreshSoulShardDisplays();
+    const cost = getFamiliarUnlockCost(familiar);
+    const current = Math.max(0, Math.floor(state.soulShards ?? 0));
+    if (current < cost) return false;
+
+    const unlockedFamiliars = [...new Set([...(progress.unlockedFamiliars ?? []), familiarId])];
+    state.soulShards = current - cost;
+    state.familiarProgress = {
+      ...progress,
+      unlockedFamiliars,
+      equippedFamiliarId: familiarId,
+    };
+    savePrefs({
+      soulShards: state.soulShards,
+      ...state.familiarProgress,
+    });
+    window.dispatchEvent(new CustomEvent("soul-shards-changed"));
+    renderFamiliarChoices();
+    return true;
   }
 
   function hideIntro() {
@@ -124,8 +393,13 @@ export function initTitleUI(refs, state, assets, audio, onSelectHero, onStart) {
     }, 760);
   }
 
+  function dismissIntro() {
+    if (introActive) hideIntro();
+  }
+
   function setActive(id, { force = false } = {}) {
     if (introActive && !force) return;
+    if (!isHeroUnlocked(id) && !unlockHero(id)) return;
     state.selectedHeroId = id;
     heroButtons.forEach((btn, index) => {
       btn.classList.toggle("active", id === index + 1);
@@ -143,6 +417,18 @@ export function initTitleUI(refs, state, assets, audio, onSelectHero, onStart) {
       btn.classList.toggle("active", Number(btn.dataset.stageId) === stage.id);
     });
     savePrefs({ selectedStageId: stage.id });
+    refreshDifficultyLocks();
+  }
+
+  function setActiveDifficulty(id, { force = false } = {}) {
+    if (introActive && !force) return;
+    const difficulty = getStageDifficulty(id);
+    if (!isDifficultyUnlocked(state.selectedStageId || 1, difficulty.id)) return;
+    state.selectedDifficultyId = difficulty.id;
+    difficultyButtons.forEach((btn) => {
+      btn.classList.toggle("active", btn.dataset.difficultyId === difficulty.id);
+    });
+    savePrefs({ selectedDifficultyId: difficulty.id });
   }
 
   function refreshStageLocks() {
@@ -158,11 +444,47 @@ export function initTitleUI(refs, state, assets, audio, onSelectHero, onStart) {
     if ((state.selectedStageId || 1) > unlockedStageMax) {
       setActiveStage(unlockedStageMax, { force: true });
     }
+    refreshDifficultyLocks();
   }
 
+  function getUnlockedDifficultySet(stageId) {
+    const latestPrefs = loadPrefs();
+    const unlockedMap = state.unlockedDifficulties ?? latestPrefs.unlockedDifficulties ?? {};
+    const ids = Array.isArray(unlockedMap[stageId]) ? unlockedMap[stageId] : ["easy"];
+    return new Set(["easy", ...ids]);
+  }
+
+  function isDifficultyUnlocked(stageId, difficultyId) {
+    return getUnlockedDifficultySet(stageId).has(difficultyId);
+  }
+
+  function refreshDifficultyLocks() {
+    const stageId = state.selectedStageId || 1;
+    const unlocked = getUnlockedDifficultySet(stageId);
+    difficultyButtons.forEach((btn) => {
+      const difficultyId = btn.dataset.difficultyId;
+      const locked = !unlocked.has(difficultyId);
+      btn.classList.toggle("difficultyBtn--locked", locked);
+      btn.setAttribute("aria-disabled", locked ? "true" : "false");
+      btn.tabIndex = locked ? -1 : 0;
+    });
+
+    if (!unlocked.has(state.selectedDifficultyId || "easy")) {
+      const fallback = STAGE_DIFFICULTIES.find((difficulty) => unlocked.has(difficulty.id)) ?? STAGE_DIFFICULTIES[0];
+      setActiveDifficulty(fallback.id, { force: true });
+    }
+  }
+
+  if (!isHeroUnlocked(state.selectedHeroId || 1)) {
+    state.selectedHeroId = 1;
+    savePrefs({ selectedHeroId: 1 });
+  }
+  refreshHeroLocks();
   setActive(state.selectedHeroId || 1, { force: true });
   refreshStageLocks();
   setActiveStage(state.selectedStageId || prefs.selectedStageId || 1, { force: true });
+  refreshDifficultyLocks();
+  setActiveDifficulty(state.selectedDifficultyId || prefs.selectedDifficultyId || "easy", { force: true });
 
   if (introActive) {
     refs.titleScreen?.classList.add("op-active");
@@ -178,17 +500,34 @@ export function initTitleUI(refs, state, assets, audio, onSelectHero, onStart) {
   stageButtons.forEach((btn) => {
     btn.addEventListener("click", () => setActiveStage(Number(btn.dataset.stageId)));
   });
+  difficultyButtons.forEach((btn) => {
+    btn.addEventListener("click", () => setActiveDifficulty(btn.dataset.difficultyId));
+  });
   window.addEventListener("stage-unlocks-changed", () => refreshStageLocks());
+  window.addEventListener("difficulty-unlocks-changed", () => refreshDifficultyLocks());
+  window.addEventListener("soul-shards-changed", () => {
+    refreshSoulShardDisplays();
+    refreshHeroLocks();
+    if (permanentOverlay?.classList.contains("is-open")) {
+      renderPermanentChoices();
+    }
+  });
   introStartBtn?.addEventListener("click", () => hideIntro());
   openConfigBtn?.addEventListener("click", () => openConfig());
   closeConfigBtn?.addEventListener("click", () => closeConfig());
+  resetSaveBtn?.addEventListener("click", () => handleResetSaveClick());
   openFamiliarBtn?.addEventListener("click", () => openFamiliarPanel());
   closeFamiliarBtn?.addEventListener("click", () => closeFamiliarPanel());
+  openPermanentBtn?.addEventListener("click", () => openPermanentPanel());
+  closePermanentBtn?.addEventListener("click", () => closePermanentPanel());
   configOverlay?.addEventListener("click", (e) => {
     if (e.target === configOverlay) closeConfig();
   });
   familiarOverlay?.addEventListener("click", (e) => {
     if (e.target === familiarOverlay) closeFamiliarPanel();
+  });
+  permanentOverlay?.addEventListener("click", (e) => {
+    if (e.target === permanentOverlay) closePermanentPanel();
   });
 
   window.addEventListener("keydown", (e) => {
@@ -196,6 +535,11 @@ export function initTitleUI(refs, state, assets, audio, onSelectHero, onStart) {
     if (e.key === "Escape" && familiarOverlay?.classList.contains("is-open")) {
       e.preventDefault();
       closeFamiliarPanel();
+      return;
+    }
+    if (e.key === "Escape" && permanentOverlay?.classList.contains("is-open")) {
+      e.preventDefault();
+      closePermanentPanel();
       return;
     }
     if (e.key === "Escape" && configOverlay?.classList.contains("is-open")) {
@@ -312,7 +656,7 @@ function buildStatRanges(heroes) {
 function renderHeroStats(stats, ranges) {
   return [
     renderStatRow("HP", stats.hp, ranges.hp),
-    renderStatRow("速", stats.speed, ranges.speed),
+    renderStatRow("\u901f", stats.speed, ranges.speed),
   ].join("");
 }
 
@@ -342,24 +686,55 @@ function bindConfigToggle(el, initialValue, onChange) {
   });
 }
 
-function getFamiliarBadge(familiar) {
-  if (familiar?.id === "familiar_yakyo") return "梟";
-  if (familiar?.id === "familiar_reiri") return "狸";
-  if (familiar?.id === "familiar_shikigami") return "狐";
-  return "式";
+function renderFamiliarPortrait(familiar) {
+  if (familiar?.id === "familiar_kodama") {
+    return `<div class="familiarPortrait familiarPortrait--kodama" aria-hidden="true"></div>`;
+  }
+  const portrait = getFamiliarPortrait(familiar);
+  if (!portrait) {
+    return `<div class="familiarPortrait familiarPortrait--text">\u5f0f</div>`;
+  }
+  const style = [
+    `--familiar-sprite:url("${portrait.src}")`,
+    `--portrait-x:${portrait.x}`,
+    `--portrait-y:${portrait.y}`,
+    `--portrait-scale:${portrait.scale}`,
+  ].join(";");
+  return `<div class="familiarPortrait familiarPortrait--sprite" style='${style}'></div>`;
+}
+
+function getFamiliarPortrait(familiar) {
+  if (familiar?.id === "familiar_yakyo") {
+    return { src: PATHS.yakyoOwlFamiliar, x: "51%", y: "25%", scale: 2.2 };
+  }
+  if (familiar?.id === "familiar_reiri") {
+    return { src: PATHS.reiriTanukiFamiliar, x: "51%", y: "25%", scale: 2.15 };
+  }
+  if (familiar?.id === "familiar_shikigami") {
+    return { src: PATHS.shikigamiFamiliar, x: "49%", y: "36%", scale: 1.65 };
+  }
+  return null;
 }
 
 function getFamiliarSummary(familiar) {
+  if (familiar?.id === "familiar_kodama") {
+    return "\u5c0f\u3055\u306a\u970a\u529b\u3067\u8fd1\u304f\u306e\u6575\u3092\u3064\u3064\u304f\u3001\u63a7\u3048\u3081\u306a\u521d\u671f\u5f0f\u795e";
+  }
   if (familiar?.attackStyle === "airstrike") {
-    return "上空から狙いを定め、爆撃で範囲を焼く";
+    return "\u4e0a\u7a7a\u304b\u3089\u6c37\u6280\u3092\u843d\u3068\u3057\u3001\u7bc4\u56f2\u5185\u306e\u6575\u3092\u9045\u304f\u3059\u308b";
   }
   if (familiar?.attackStyle === "priority_target_support") {
-    return "索敵で敵を示し、優先ターゲットへのダメージを高める";
+    return "\u7d22\u6575\u3067\u6575\u3092\u793a\u3057\u3001\u512a\u5148\u30bf\u30fc\u30b2\u30c3\u30c8\u3078\u306e\u30c0\u30e1\u30fc\u30b8\u3092\u9ad8\u3081\u308b";
   }
   if (familiar?.attackStyle === "tackle") {
-    return "敵へ駆け込み、たいあたりで押し返す";
+    return "\u6575\u3078\u99c6\u3051\u8fbc\u307f\u3001\u4f53\u5f53\u305f\u308a\u3067\u62bc\u3057\u8fd4\u3059";
   }
-  return "狐火を放ち、着弾後に火を残す";
+  return "\u72d0\u706b\u3067\u6575\u3092\u72d9\u3044\u3001\u7740\u5f3e\u5f8c\u306b\u708e\u3092\u6b8b\u3059";
+}
+
+function formatPercentBonus(multiplier) {
+  const pct = Math.max(0, (multiplier - 1) * 100);
+  return `${Math.round(pct * 10) / 10}%`;
 }
 
 function escapeHtml(text) {

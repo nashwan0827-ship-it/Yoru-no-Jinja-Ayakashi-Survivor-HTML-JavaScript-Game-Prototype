@@ -20,6 +20,8 @@ export function createAssets(){
   let _mossyRocksReady = false;
   let _mossyLanternImg = null;
   let _mossyLanternReady = false;
+  let _soulShardIconImg = null;
+  let _soulShardIconReady = false;
 
   let _heroImg = null;
   let _heroReady = false;
@@ -270,6 +272,18 @@ export function createAssets(){
       if (!res.ok) {
         console.error("[assets] stage object load failed:", res.src);
       }
+    }
+  }
+
+  async function loadSoulShardIcon(){
+    const res = await loadImage(PATHS.soulShardIcon);
+    if(res.ok){
+      _soulShardIconImg = res.img;
+      _soulShardIconReady = true;
+    }else{
+      _soulShardIconImg = null;
+      _soulShardIconReady = false;
+      console.error("[assets] soul shard icon load failed:", res.src);
     }
   }
 
@@ -582,6 +596,7 @@ export function createAssets(){
       loadStage1Tiles(),
       loadToriiWeathered(),
       loadStageObjects(),
+      loadSoulShardIcon(),
       loadHero(1),
       loadEnemy2(),
       loadBoss(),
@@ -618,6 +633,8 @@ export function createAssets(){
     autumnLeavesReady: ()=>_autumnLeavesReady,
     mossyRocksImg: ()=>_mossyRocksImg,
     mossyRocksReady: ()=>_mossyRocksReady,
+    soulShardIconImg: ()=>_soulShardIconImg,
+    soulShardIconReady: ()=>_soulShardIconReady,
     mossyLanternImg: ()=>_mossyLanternImg,
     mossyLanternReady: ()=>_mossyLanternReady,
 

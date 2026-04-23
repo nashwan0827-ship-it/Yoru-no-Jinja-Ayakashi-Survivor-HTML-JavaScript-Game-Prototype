@@ -765,7 +765,35 @@ export function killEnemy(state, hud, audio, e, fromOfuda = false) {
     state.fx.push({ t: 0, dur: 0.22, kind: "burst", x: e.x, y: e.y });
   }
 
+  dropSoulShards(state, e);
+
   state.kills++;
+}
+
+function dropSoulShards(state, e) {
+  const stageMul = Math.max(1, Math.floor(state.stage ?? 1));
+  const rewardMul = getDifficultySoulShardMultiplier(state.selectedDifficultyId);
+  const normalDropChance = Math.min(0.5, 0.12 * rewardMul);
+  const count = e.isBoss
+    ? Math.max(1, Math.round((4 + stageMul * 2) * rewardMul))
+    : Math.random() < normalDropChance ? 1 : 0;
+  for (let k = 0; k < count; k++) {
+    state.drops.push({
+      kind: "soulShard",
+      x: e.x,
+      y: e.y,
+      r: 7,
+      amount: 1,
+      vx: (Math.random() * 2 - 1) * (e.isBoss ? 54 : 22),
+      vy: (Math.random() * 2 - 1) * (e.isBoss ? 54 : 22),
+    });
+  }
+}
+
+function getDifficultySoulShardMultiplier(difficultyId) {
+  if (difficultyId === "hard") return 3;
+  if (difficultyId === "normal") return 2;
+  return 1;
 }
 
 

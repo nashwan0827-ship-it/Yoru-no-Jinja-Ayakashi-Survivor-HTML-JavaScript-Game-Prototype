@@ -47,6 +47,7 @@ export const PATHS = {
   hpMaxIcon: "./assets/icons/items/hpmax_icon.png",
   areaIcon: "./assets/icons/items/area_icon.png",
   shikigamiBoostIcon: "./assets/icons/items/shikigami_boost_icon.png",
+  soulShardIcon: "./assets/icons/items/soul_shard.png",
 
   // audio
   titleBgm: "./assets/audio/bgm/shrine_title.mp3",

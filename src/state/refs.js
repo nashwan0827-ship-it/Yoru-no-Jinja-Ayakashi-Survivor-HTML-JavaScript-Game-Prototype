@@ -9,6 +9,7 @@ export function createRefs() {
     uiTime: document.getElementById("time"),
     uiKills: document.getElementById("kills"),
     uiWave: document.getElementById("wave"),
+    uiSoulShards: document.getElementById("soulShards"),
     weaponsPanel: document.getElementById("weaponsPanel"),
     itemsPanel: document.getElementById("itemsPanel"),
     toggleLoadoutBtn: document.getElementById("toggleLoadoutBtn"),
@@ -36,6 +37,7 @@ export function createRefs() {
     heroBtn5: document.getElementById("heroBtn5"),
     stageBtn1: document.getElementById("stageBtn1"),
     stageBtn2: document.getElementById("stageBtn2"),
+    stageBtn3: document.getElementById("stageBtn3"),
     bgmVolume: document.getElementById("bgmVolume"),
     seVolume: document.getElementById("seVolume"),
   };

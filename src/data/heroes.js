@@ -8,6 +8,7 @@ export const HEROES = [
   {
     id: 1,
     name: "巫女・鈴音",
+    unlockCost: 0,
     startingWeaponId: "ofuda", // 初期武器IDのみ定義
     stats: {
       hp: 95,
@@ -19,6 +20,7 @@ export const HEROES = [
   {
     id: 2,
     name: "花人・舞桜",
+    unlockCost: 500,
     startingWeaponId: "petal", // 初期武器IDのみ定義
     stats: {
       hp: 112,
@@ -30,6 +32,7 @@ export const HEROES = [
   {
     id: 3,
     name: "雷狐・雷霞",
+    unlockCost: 1500,
     startingWeaponId: "thunder",
     stats: {
       hp: 110,
@@ -41,6 +44,7 @@ export const HEROES = [
   {
     id: 4,
     name: "霊刃・刹那",
+    unlockCost: 2000,
     startingWeaponId: "slash",
     stats: {
       hp: 155,
@@ -52,6 +56,7 @@ export const HEROES = [
   {
     id: 5,
     name: "翠玉・若葉",
+    unlockCost: 2500,
     startingWeaponId: "orbit",
     stats: {
       hp: 170,
@@ -61,3 +66,7 @@ export const HEROES = [
     },
   },
 ];
+
+export function getDefaultUnlockedHeroIds() {
+  return HEROES.filter((hero) => (hero.unlockCost ?? 0) <= 0).map((hero) => hero.id);
+}

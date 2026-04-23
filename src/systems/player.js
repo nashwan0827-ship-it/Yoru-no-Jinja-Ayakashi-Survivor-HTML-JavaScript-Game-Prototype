@@ -473,32 +473,136 @@ function slashTick(state, dt) {
   p[cdKey] += scaleAttackInterval(state, ws.interval ?? 0.7);
 
   const multi = Math.max(1, Math.round(ws.multi ?? 1));
-  const spread = entry.weaponId === "reppuzan" ? 0.18 : 0.12;
+  const spread = entry.weaponId === "reppuzan" ? 0.34 : 0.12;
   const offsets = getProjectileAngleOffsets(entry.weaponId, multi, spread);
+  const hitEnemies = new WeakSet();
 
   for (const offset of offsets) {
     const angle = facingAngle + offset;
-    const vx = Math.cos(angle);
-    const vy = Math.sin(angle);
-    const originX = p.x + vx * (p.r + 18);
-    const originY = p.y + PLAYER_CENTER_Y_OFFSET + vy * (p.r + 18);
-    const speed = ws.projSpeed ?? 720;
-
-    state.projectiles.push({
-      x: originX,
-      y: originY,
-      vx: vx * speed,
-      vy: vy * speed,
-      r: scaleRange(state, ws.r ?? 18),
-      dmg: Math.round(ws.dmg ?? 36),
-      pierce: ws.pierce ?? 1,
-      life: ws.life ?? 0.62,
-      kind: entry.weaponId === "reppuzan" ? "reppuzanSlash" : "slash",
+    performSlashArcAttack(state, {
+      sourceId: entry.weaponId,
+      x: p.x,
+      y: p.y + PLAYER_CENTER_Y_OFFSET,
+      angle,
+      range: scaleRange(state, ws.range ?? 120),
+      angleDeg: ws.angleDeg ?? 82,
+      dmg: scaleDamage(state, ws.dmg ?? 36),
       knock: ws.knock ?? 70,
-      rot: angle,
-      lifeSteal: ws.lifeSteal ?? 0,
+      maxTargets: entry.weaponId === "reppuzan"
+        ? 4 + Math.max(0, Math.round(ws.pierce ?? 0))
+        : 2 + Math.max(0, Math.round(ws.pierce ?? 0)),
+      hitEnemies,
     });
   }
+}
+
+function performSlashArcAttack(state, config) {
+  const {
+    sourceId,
+    x,
+    y,
+    angle,
+    range,
+    angleDeg,
+    dmg,
+    knock,
+    maxTargets,
+    hitEnemies,
+  } = config;
+  const isReppuzan = sourceId === "reppuzan";
+  const halfAngle = ((angleDeg ?? 90) * Math.PI) / 360;
+  let hits = 0;
+
+  const candidates = [];
+  for (const e of state.enemies) {
+    if (e.hp <= 0 || hitEnemies?.has(e)) continue;
+    const dx = e.x - x;
+    const dy = e.y - y;
+    const dSq = dx * dx + dy * dy;
+    if (dSq > (range + (e.r ?? 12)) * (range + (e.r ?? 12))) continue;
+    if (Math.abs(angleDelta(Math.atan2(dy, dx), angle)) > halfAngle) continue;
+    candidates.push({ enemy: e, dSq });
+  }
+
+  candidates.sort((a, b) => a.dSq - b.dSq);
+  for (const { enemy } of candidates) {
+    if (hits >= maxTargets) break;
+    const damage = applyPriorityTargetDamageBonus(state, enemy, dmg);
+    recordEnemyDamage(state, sourceId, enemy, damage);
+    enemy.hp -= damage;
+    hitEnemies?.add(enemy);
+    hits += 1;
+
+    if (!enemy.isBoss) {
+      enemy.knock = Math.min(isReppuzan ? 230 : 190, (enemy.knock || 0) + knock);
+    }
+
+    state.fx.push({
+      kind: "dmg",
+      x: enemy.x,
+      y: enemy.y - (enemy.r || 12),
+      text: String(damage),
+      t: 0,
+      dur: 0.55,
+      vy: -38,
+      jitter: 0,
+    });
+  }
+
+  const blocked = blockHostileProjectilesInSlashArc(state, x, y, range + (isReppuzan ? 42 : 24), angle, halfAngle);
+  if (blocked > 0) {
+    state.hitStop = Math.min(0.06, (state.hitStop || 0) + 0.015);
+  } else if (hits > 0) {
+    state.hitStop = Math.min(0.05, (state.hitStop || 0) + 0.01);
+  }
+
+  state.fx.push({
+    kind: "slashArc",
+    t: 0,
+    dur: isReppuzan ? 0.16 : 0.12,
+    x,
+    y,
+    angle,
+    range,
+    angleDeg,
+    reppuzan: isReppuzan,
+  });
+}
+
+function blockHostileProjectilesInSlashArc(state, x, y, range, angle, halfAngle) {
+  const shots = state.hostileProjectiles;
+  if (!Array.isArray(shots) || shots.length === 0) return 0;
+
+  let blocked = 0;
+  const rangeSq = range * range;
+  for (let i = shots.length - 1; i >= 0; i--) {
+    const shot = shots[i];
+    const dx = shot.x - x;
+    const dy = shot.y - y;
+    if (dx * dx + dy * dy > rangeSq) continue;
+    if (Math.abs(angleDelta(Math.atan2(dy, dx), angle)) > halfAngle) continue;
+
+    state.fx.push({
+      kind: "burst",
+      t: 0,
+      dur: 0.14,
+      x: shot.x,
+      y: shot.y,
+      color: shot.color ?? "#d9f5ff",
+      alphaMul: 1.1,
+    });
+    shots.splice(i, 1);
+    blocked += 1;
+  }
+
+  return blocked;
+}
+
+function angleDelta(a, b) {
+  let d = a - b;
+  while (d > Math.PI) d -= Math.PI * 2;
+  while (d < -Math.PI) d += Math.PI * 2;
+  return d;
 }
 
 function chainThunder(state, source, config) {

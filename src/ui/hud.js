@@ -1,15 +1,15 @@
-import { clamp } from "../core/utils.js";
+﻿import { clamp } from "../core/utils.js";
 import { getWeapon } from "../data/weapons.js";
 import { getStage } from "../data/stages.js";
 import { PATHS } from "../../paths.js";
 
 const ITEM_LABELS = {
-  atk: "呪力",
-  aspd: "神速",
-  area: "拡界",
-  hpMax: "護符",
-  magnet: "引寄せ",
-  familiarBoost: "式神強化",
+  atk: "\u546a\u529b",
+  aspd: "\u795e\u901f",
+  area: "\u62e1\u754c",
+  hpMax: "\u8b77\u7b26",
+  magnet: "\u5f15\u5bc4\u305b",
+  familiarBoost: "\u5f0f\u795e\u5f37\u5316",
 };
 
 const WEAPON_ICONS = {
@@ -41,6 +41,7 @@ export function createHUD(refs){
     killsText: null,
     waveText: null,
     statsHtml: null,
+    soulShardText: null,
     hpText: null,
     hpWidth: null,
     xpWidth: null,
@@ -120,7 +121,7 @@ export function createHUD(refs){
         lines.push(
           `<div class="weaponSlotRow weaponSlotRow--empty">`+
             `${renderSlotBox()}`+
-            `<div class="weaponSlotText">空き</div>`+
+            `<div class="weaponSlotText">\u7a7a\u304d</div>`+
             `<div class="weaponSlotLv">-</div>`+
           `</div>`
         );
@@ -128,7 +129,7 @@ export function createHUD(refs){
     }
 
     refs.weaponsPanel.innerHTML =
-      `<div class="weaponSlotsTitle">武器</div>`+
+      `<div class="weaponSlotsTitle">\u6b66\u5668</div>`+
       lines.join("");
     cache.weaponsSnapshot = snapshot;
   }
@@ -157,7 +158,7 @@ export function createHUD(refs){
         lines.push(
           `<div class="weaponSlotRow weaponSlotRow--empty">`+
             `${renderSlotBox()}`+
-            `<div class="weaponSlotText">空き</div>`+
+            `<div class="weaponSlotText">\u7a7a\u304d</div>`+
             `<div class="weaponSlotLv">-</div>`+
           `</div>`
         );
@@ -165,7 +166,7 @@ export function createHUD(refs){
     }
 
     refs.itemsPanel.innerHTML =
-      `<div class="weaponSlotsTitle">装備</div>`+
+      `<div class="weaponSlotsTitle">\u88c5\u5099</div>`+
       lines.join("");
     cache.itemsSnapshot = snapshot;
   }
@@ -193,6 +194,7 @@ export function createHUD(refs){
     cache.killsText = null;
     cache.waveText = null;
     cache.statsHtml = null;
+    cache.soulShardText = null;
     cache.hpText = null;
     cache.hpWidth = null;
     cache.xpWidth = null;
@@ -203,10 +205,10 @@ export function createHUD(refs){
   }
 
   function update(state){
-    const scoreText = `スコア: ${Math.floor(state.score).toLocaleString()}`;
-    const timeText = `時間: ${formatTime(state.timeSurvived)}`;
-    const killsText = `キル: ${state.kills}`;
-    const waveText = `${getStage(state.stage).name} / ウェーブ: ${state.wave}`;
+    const scoreText = `\u30b9\u30b3\u30a2: ${Math.floor(state.score).toLocaleString()}`;
+    const timeText = `\u6642\u9593: ${formatTime(state.timeSurvived)}`;
+    const killsText = `\u8a0e\u4f10: ${state.kills}`;
+    const waveText = `${getStage(state.stage).name} / \u30a6\u30a7\u30fc\u30d6 ${state.wave}`;
 
     if (cache.scoreText !== scoreText) {
       setText(refs.uiScore, scoreText);
@@ -228,11 +230,17 @@ export function createHUD(refs){
     const p = state.player;
 
     const statsHtml =
-      `Lv.${p.level} / 磁石: ${Math.round(p.magnet)}<br>`+
-      `敵: ${state.enemies.length}`;
+      `Lv.${p.level} / \u56de\u53ce: ${Math.round(p.magnet)}<br>`+
+      `\u6575: ${state.enemies.length}`;
     if (cache.statsHtml !== statsHtml) {
       setHTML(refs.uiStats, statsHtml);
       cache.statsHtml = statsHtml;
+    }
+
+    const soulShardText = `\u9b42\u7247: ${Math.max(0, Math.floor(state.soulShards ?? 0)).toLocaleString()}`;
+    if (cache.soulShardText !== soulShardText) {
+      setText(refs.uiSoulShards, soulShardText);
+      cache.soulShardText = soulShardText;
     }
 
     const hpText = `HP ${Math.ceil(p.hp)}/${p.hpMax}`;
