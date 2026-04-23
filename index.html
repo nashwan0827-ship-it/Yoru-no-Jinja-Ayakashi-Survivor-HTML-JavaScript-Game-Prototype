@@ -1782,6 +1782,55 @@
       .configWarningText.is-visible {
         display: block;
       }
+      .confirmDialog {
+        width: min(360px, 100%);
+      }
+      .confirmBody {
+        display: grid;
+        gap: 10px;
+        margin: 0 0 14px;
+        padding: 12px;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        background: rgba(255, 255, 255, 0.045);
+      }
+      .confirmText {
+        color: rgba(243, 232, 211, 0.88);
+        font-size: 12px;
+        line-height: 1.5;
+      }
+      .confirmCost {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        padding: 7px 9px;
+        border-radius: 8px;
+        border: 1px solid rgba(145, 244, 255, 0.22);
+        background: rgba(95, 235, 255, 0.07);
+        color: rgba(229, 255, 255, 0.92);
+        font-size: 11px;
+        font-weight: 700;
+      }
+      .confirmActions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+      .confirmBtn {
+        padding: 10px 12px;
+        border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        background: rgba(255, 255, 255, 0.06);
+        color: #f4ead6;
+        font-size: 12px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      .confirmBtn--primary {
+        border-color: rgba(145, 244, 255, 0.24);
+        background: rgba(95, 235, 255, 0.1);
+        color: rgba(229, 255, 255, 0.94);
+      }
       .configSectionLabel {
         margin: 0 0 8px;
         font-size: 10px;
@@ -3082,6 +3131,37 @@
               </div>
             </div>
             <div class="achievementGrid" id="achievementChoices"></div>
+          </div>
+        </div>
+        <div class="configOverlay" id="confirmOverlay" aria-hidden="true">
+          <div
+            class="configDialog confirmDialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="confirmTitle"
+          >
+            <div class="configHead">
+              <h3 id="confirmTitle">確認</h3>
+              <button
+                class="configClose"
+                id="closeConfirmBtn"
+                type="button"
+                aria-label="確認を閉じる"
+              >
+                ×
+              </button>
+            </div>
+            <div class="confirmBody">
+              <div class="confirmText" id="confirmText">実行しますか？</div>
+              <div class="confirmCost" aria-label="消費魂片">
+                <span class="configCurrencyIcon" aria-hidden="true"></span>
+                <span id="confirmCostText">魂片 0</span>
+              </div>
+            </div>
+            <div class="confirmActions">
+              <button class="confirmBtn" id="cancelConfirmBtn" type="button">やめる</button>
+              <button class="confirmBtn confirmBtn--primary" id="acceptConfirmBtn" type="button">決定</button>
+            </div>
           </div>
         </div>
       </div>
